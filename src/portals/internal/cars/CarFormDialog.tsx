@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   Alert,
+  Box,
   Button,
   Dialog,
   DialogActions,
@@ -18,7 +19,6 @@ import { supabase } from '../../../lib/supabase'
 import type { PartnerRow } from '../../../types/partner'
 import type { CarWithPartner } from '../../../types/car'
 import { ConfirmDialog } from '../../../components/ConfirmDialog.tsx'
-import { useDialogFullScreen } from '../../../hooks/useDialogFullScreen'
 
 type Props = {
   open: boolean
@@ -28,7 +28,6 @@ type Props = {
 }
 
 export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
-  const fullScreen = useDialogFullScreen()
   const [name, setName] = useState('')
   const [plate, setPlate] = useState('')
   const [ownershipType, setOwnershipType] = useState<'rental' | 'partner'>('rental')
@@ -67,6 +66,11 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
         setPartners(data ?? [])
       })
   }, [open])
+
+  const handleClose = () => {
+    if (saving) return
+    onClose()
+  }
 
   async function handleSave() {
     if (ownershipType === 'partner' && !partnerId) {
@@ -127,59 +131,107 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" fullScreen={fullScreen} scroll="paper">
+      <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
         <DialogTitle>{initial ? 'Edit car' : 'Add car'}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1, px: { xs: 2, sm: 3 } }}>
-          {error ? <Alert severity="error">{error}</Alert> : null}
-          <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-          <TextField label="Plate" value={plate} onChange={(e) => setPlate(e.target.value)} required />
-          <FormControl fullWidth>
-            <InputLabel id="own-label">Ownership</InputLabel>
-            <Select
-              labelId="own-label"
-              label="Ownership"
-              value={ownershipType}
-              onChange={(e) => setOwnershipType(e.target.value as 'rental' | 'partner')}
-            >
-              <MenuItem value="rental">Rental (company)</MenuItem>
-              <MenuItem value="partner">Partner</MenuItem>
-            </Select>
-          </FormControl>
-          {ownershipType === 'partner' ? (
-            <FormControl fullWidth>
-              <InputLabel id="p-label">Partner</InputLabel>
+        <DialogContent>
+          {error ? (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          ) : null}
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+              gap: 2,
+              mb: 2,
+            }}
+          >
+            <TextField
+              size="small"
+              label="Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              fullWidth
+            />
+            <TextField
+              size="small"
+              label="Plate"
+              value={plate}
+              onChange={(e) => setPlate(e.target.value)}
+              required
+              fullWidth
+            />
+          </Box>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+              gap: 2,
+              mb: 2,
+            }}
+          >
+            <FormControl fullWidth size="small">
+              <InputLabel id="own-label">Ownership</InputLabel>
               <Select
-                labelId="p-label"
-                label="Partner"
-                value={partnerId}
-                onChange={(e) => setPartnerId(e.target.value)}
+                labelId="own-label"
+                label="Ownership"
+                value={ownershipType}
+                onChange={(e) => setOwnershipType(e.target.value as 'rental' | 'partner')}
               >
-                {partners.map((p) => (
-                  <MenuItem key={p.id} value={p.id}>
-                    {p.name}
-                  </MenuItem>
-                ))}
+                <MenuItem value="rental">Rental (company)</MenuItem>
+                <MenuItem value="partner">Partner</MenuItem>
               </Select>
             </FormControl>
-          ) : null}
+            {ownershipType === 'partner' ? (
+              <FormControl fullWidth size="small">
+                <InputLabel id="p-label">Partner</InputLabel>
+                <Select
+                  labelId="p-label"
+                  label="Partner"
+                  value={partnerId}
+                  onChange={(e) => setPartnerId(e.target.value)}
+                >
+                  {partners.map((p) => (
+                    <MenuItem key={p.id} value={p.id}>
+                      {p.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            ) : null}
+          </Box>
           <FormControlLabel
-            control={<Switch checked={hasGps} onChange={(_, v) => setHasGps(v)} />}
+            control={<Switch checked={hasGps} onChange={(_, v) => setHasGps(v)} size="small" />}
             label="Has GPS"
+            sx={{ mb: 1 }}
           />
           <TextField
+            size="small"
             label="Photo URL"
             value={photoUrl}
             onChange={(e) => setPhotoUrl(e.target.value)}
+            fullWidth
+            sx={{ mb: 2 }}
           />
-          <TextField label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} multiline minRows={2} />
+          <TextField
+            size="small"
+            label="Notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            multiline
+            minRows={4}
+            fullWidth
+          />
         </DialogContent>
         <DialogActions
           sx={{
+            px: 3,
+            pb: 2,
             justifyContent: 'space-between',
             flexWrap: 'wrap',
             gap: 1,
-            px: { xs: 2, sm: 3 },
-            pb: 2,
           }}
         >
           <span>
@@ -189,12 +241,14 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
               </Button>
             ) : null}
           </span>
-          <span>
-            <Button onClick={onClose}>Cancel</Button>
-            <Button variant="contained" onClick={() => void handleSave()} disabled={saving}>
-              Save
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button onClick={handleClose} disabled={saving}>
+              Cancel
             </Button>
-          </span>
+            <Button variant="contained" onClick={() => void handleSave()} disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </Button>
+          </Box>
         </DialogActions>
       </Dialog>
       <ConfirmDialog

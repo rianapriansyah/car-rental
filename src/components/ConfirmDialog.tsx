@@ -6,7 +6,6 @@ import {
   DialogContentText,
   DialogTitle,
 } from '@mui/material'
-import { useDialogFullScreen } from '../hooks/useDialogFullScreen'
 
 type Props = {
   open: boolean
@@ -25,14 +24,13 @@ export function ConfirmDialog({
   onCancel,
   onConfirm,
 }: Props) {
-  const fullScreen = useDialogFullScreen()
   return (
-    <Dialog open={open} onClose={onCancel} fullScreen={fullScreen} fullWidth maxWidth="xs">
+    <Dialog open={open} onClose={onCancel} fullWidth maxWidth="xs">
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
         <DialogContentText>{description}</DialogContentText>
       </DialogContent>
-      <DialogActions>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onCancel}>Cancel</Button>
         <Button color="error" variant="contained" onClick={onConfirm}>
           {confirmLabel}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   Alert,
+  Box,
   Button,
   Dialog,
   DialogActions,
@@ -9,7 +10,6 @@ import {
   TextField,
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
-import { useDialogFullScreen } from '../../../hooks/useDialogFullScreen'
 import { invitePartnerByEmail } from '../../../lib/invitePartner'
 
 type Props = {
@@ -19,7 +19,6 @@ type Props = {
 }
 
 export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
-  const fullScreen = useDialogFullScreen()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -37,7 +36,8 @@ export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
     setInfo(null)
   }
 
-  function handleClose() {
+  const handleClose = () => {
+    if (saving) return
     reset()
     onClose()
   }
@@ -91,27 +91,66 @@ export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
   }
 
   return (
-    <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm" fullScreen={fullScreen} scroll="paper">
+    <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
       <DialogTitle>Add partner</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-        {error ? <Alert severity="error">{error}</Alert> : null}
-        {info ? <Alert severity="info">{info}</Alert> : null}
-        <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-        <TextField
-          label="Email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          helperText="Invitation email (Edge Function must be deployed)."
-        />
-        <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <TextField label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} multiline minRows={2} />
+      <DialogContent>
+        {error ? (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        ) : null}
+        {info ? <Alert severity="info" sx={{ mb: 2 }}>{info}</Alert> : null}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+              gap: 2,
+            }}
+          >
+            <TextField
+              size="small"
+              label="Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              fullWidth
+            />
+            <TextField
+              size="small"
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              fullWidth
+              helperText="Invitation email (Edge Function must be deployed)."
+            />
+          </Box>
+          <TextField
+            size="small"
+            label="Phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            size="small"
+            label="Notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            multiline
+            minRows={4}
+            fullWidth
+          />
+        </Box>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={handleClose}>Cancel</Button>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={handleClose} disabled={saving}>
+          Cancel
+        </Button>
         <Button variant="contained" onClick={() => void handleSave()} disabled={saving}>
-          Save & invite
+          {saving ? 'Saving…' : 'Save & invite'}
         </Button>
       </DialogActions>
     </Dialog>

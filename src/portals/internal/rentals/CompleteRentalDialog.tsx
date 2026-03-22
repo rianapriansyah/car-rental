@@ -8,7 +8,6 @@ import {
   DialogTitle,
   TextField,
 } from '@mui/material'
-import { useDialogFullScreen } from '../../../hooks/useDialogFullScreen'
 import { completeRentalWithIncome } from '../../../lib/feeEngine'
 
 type Props = {
@@ -19,10 +18,14 @@ type Props = {
 }
 
 export function CompleteRentalDialog({ open, rentalId, onClose, onCompleted }: Props) {
-  const fullScreen = useDialogFullScreen()
   const [gross, setGross] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  const handleClose = () => {
+    if (busy) return
+    onClose()
+  }
 
   async function submit() {
     if (!rentalId) return
@@ -45,23 +48,29 @@ export function CompleteRentalDialog({ open, rentalId, onClose, onCompleted }: P
   }
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs" fullScreen={fullScreen}>
+    <Dialog open={open} onClose={handleClose} fullWidth maxWidth="xs">
       <DialogTitle>Complete rental</DialogTitle>
-      <DialogContent sx={{ pt: 1 }}>
-        {error ? <Alert severity="error">{error}</Alert> : null}
+      <DialogContent>
+        {error ? (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        ) : null}
         <TextField
+          size="small"
           label="Gross income (IDR)"
           value={gross}
           onChange={(e) => setGross(e.target.value)}
           fullWidth
-          sx={{ mt: 1 }}
           helperText="Fees are calculated in the database via complete_rental."
         />
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={handleClose} disabled={busy}>
+          Cancel
+        </Button>
         <Button variant="contained" onClick={() => void submit()} disabled={busy || !rentalId}>
-          Complete
+          {busy ? 'Completing…' : 'Complete'}
         </Button>
       </DialogActions>
     </Dialog>

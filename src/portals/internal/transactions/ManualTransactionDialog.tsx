@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   Alert,
+  Box,
   Button,
   Dialog,
   DialogActions,
@@ -12,7 +13,9 @@ import {
   Select,
   TextField,
 } from '@mui/material'
-import { useDialogFullScreen } from '../../../hooks/useDialogFullScreen'
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker'
+import type { Dayjs } from 'dayjs'
+import dayjs from 'dayjs'
 import { supabase } from '../../../lib/supabase'
 import type { TransactionCategory, TransactionType } from '../../../types/transaction'
 
@@ -33,14 +36,18 @@ type Props = {
 }
 
 export function ManualTransactionDialog({ open, carId, onClose, onSaved }: Props) {
-  const fullScreen = useDialogFullScreen()
   const [type, setType] = useState<TransactionType>('income')
   const [category, setCategory] = useState<TransactionCategory>('other')
   const [amount, setAmount] = useState('')
-  const [recordedAt, setRecordedAt] = useState(() => new Date().toISOString().slice(0, 16))
+  const [recordedAt, setRecordedAt] = useState<Dayjs>(() => dayjs())
   const [manualNote, setManualNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const handleClose = () => {
+    if (saving) return
+    onClose()
+  }
 
   async function save() {
     const n = Number(amount.replace(/\D/g, ''))
@@ -50,7 +57,7 @@ export function ManualTransactionDialog({ open, carId, onClose, onSaved }: Props
     }
     setSaving(true)
     setError(null)
-    const iso = new Date(recordedAt).toISOString()
+    const iso = recordedAt.toISOString()
     const { error: iError } = await supabase.from('v2_transactions').insert({
       car_id: carId,
       rental_id: null,
@@ -71,51 +78,81 @@ export function ManualTransactionDialog({ open, carId, onClose, onSaved }: Props
   }
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" fullScreen={fullScreen} scroll="paper">
+    <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
       <DialogTitle>Manual transaction</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-        {error ? <Alert severity="error">{error}</Alert> : null}
-        <FormControl fullWidth>
-          <InputLabel id="t-label">Type</InputLabel>
-          <Select
-            labelId="t-label"
-            label="Type"
-            value={type}
-            onChange={(e) => setType(e.target.value as TransactionType)}
-          >
-            <MenuItem value="income">Income</MenuItem>
-            <MenuItem value="expense">Expense</MenuItem>
-          </Select>
-        </FormControl>
-        <FormControl fullWidth>
-          <InputLabel id="c-label">Category</InputLabel>
-          <Select
-            labelId="c-label"
-            label="Category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value as TransactionCategory)}
-          >
-            {CATEGORIES.map((c) => (
-              <MenuItem key={c} value={c}>
-                {c}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <TextField label="Amount (IDR)" value={amount} onChange={(e) => setAmount(e.target.value)} />
+      <DialogContent>
+        {error ? (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        ) : null}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+            gap: 2,
+            mb: 2,
+          }}
+        >
+          <FormControl fullWidth size="small">
+            <InputLabel id="t-label">Type</InputLabel>
+            <Select
+              labelId="t-label"
+              label="Type"
+              value={type}
+              onChange={(e) => setType(e.target.value as TransactionType)}
+            >
+              <MenuItem value="income">Income</MenuItem>
+              <MenuItem value="expense">Expense</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl fullWidth size="small">
+            <InputLabel id="c-label">Category</InputLabel>
+            <Select
+              labelId="c-label"
+              label="Category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value as TransactionCategory)}
+            >
+              {CATEGORIES.map((c) => (
+                <MenuItem key={c} value={c}>
+                  {c}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
         <TextField
-          label="Recorded at"
-          type="datetime-local"
-          value={recordedAt}
-          onChange={(e) => setRecordedAt(e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }}
+          size="small"
+          label="Amount (IDR)"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          fullWidth
+          sx={{ mb: 2 }}
         />
-        <TextField label="Note" value={manualNote} onChange={(e) => setManualNote(e.target.value)} multiline minRows={2} />
+        <DateTimePicker
+          label="Recorded at"
+          value={recordedAt}
+          onChange={(v) => setRecordedAt(v ?? dayjs())}
+          slotProps={{ textField: { fullWidth: true, size: 'small' } }}
+        />
+        <TextField
+          size="small"
+          label="Note"
+          value={manualNote}
+          onChange={(e) => setManualNote(e.target.value)}
+          multiline
+          minRows={4}
+          fullWidth
+          sx={{ mt: 2 }}
+        />
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={handleClose} disabled={saving}>
+          Cancel
+        </Button>
         <Button variant="contained" onClick={() => void save()} disabled={saving}>
-          Save
+          {saving ? 'Saving…' : 'Save'}
         </Button>
       </DialogActions>
     </Dialog>

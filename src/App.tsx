@@ -1,5 +1,5 @@
-import { CssBaseline, ThemeProvider, createTheme } from '@mui/material'
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { ColorModeProvider } from './contexts/ColorModeContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { AdminRoute } from './components/routing/AdminRoute'
 import { PartnerRoute } from './components/routing/PartnerRoute'
@@ -16,58 +16,9 @@ import { PartnerDashboardPage } from './portals/partner/PartnerDashboardPage'
 import { PartnerLoginPage } from './portals/partner/PartnerLoginPage'
 import { PublicFleetPage } from './portals/public/PublicFleetPage'
 
-const theme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: { main: '#1565c0' },
-    secondary: { main: '#6a1b9a' },
-  },
-  typography: {
-    htmlFontSize: 16,
-  },
-  components: {
-    MuiButton: {
-      defaultProps: { disableElevation: false },
-      styleOverrides: {
-        root: {
-          textTransform: 'none',
-          borderRadius: 8,
-        },
-        sizeLarge: {
-          minHeight: 48,
-          paddingLeft: 22,
-          paddingRight: 22,
-        },
-      },
-    },
-    MuiIconButton: {
-      styleOverrides: {
-        root: {
-          padding: 10,
-        },
-      },
-    },
-    MuiTextField: {
-      defaultProps: {
-        variant: 'outlined',
-      },
-    },
-  },
-  breakpoints: {
-    values: {
-      xs: 0,
-      sm: 600,
-      md: 900,
-      lg: 1200,
-      xl: 1536,
-    },
-  },
-})
-
 export default function App() {
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <ColorModeProvider>
       <ErrorBoundary>
         <Routes>
           <Route path="/" element={<Navigate to="/public" replace />} />
@@ -96,6 +47,6 @@ export default function App() {
           <Route path="*" element={<Navigate to="/public" replace />} />
         </Routes>
       </ErrorBoundary>
-    </ThemeProvider>
+    </ColorModeProvider>
   )
 }

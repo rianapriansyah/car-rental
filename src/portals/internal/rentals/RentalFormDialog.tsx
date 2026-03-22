@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   Alert,
+  Box,
   Button,
   Dialog,
   DialogActions,
@@ -14,7 +15,8 @@ import {
   Switch,
   TextField,
 } from '@mui/material'
-import { useDialogFullScreen } from '../../../hooks/useDialogFullScreen'
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import type { Dayjs } from 'dayjs'
 import { supabase } from '../../../lib/supabase'
 
 type CarOption = { id: string; name: string; plate: string }
@@ -26,12 +28,11 @@ type Props = {
 }
 
 export function RentalFormDialog({ open, onClose, onSaved }: Props) {
-  const fullScreen = useDialogFullScreen()
   const [cars, setCars] = useState<CarOption[]>([])
   const [carId, setCarId] = useState('')
   const [renterName, setRenterName] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [startDate, setStartDate] = useState<Dayjs | null>(null)
+  const [endDate, setEndDate] = useState<Dayjs | null>(null)
   const [durationDays, setDurationDays] = useState('')
   const [isManual, setIsManual] = useState(false)
   const [manualNote, setManualNote] = useState('')
@@ -43,8 +44,8 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
     setError(null)
     setCarId('')
     setRenterName('')
-    setStartDate('')
-    setEndDate('')
+    setStartDate(null)
+    setEndDate(null)
     setDurationDays('')
     setIsManual(false)
     setManualNote('')
@@ -63,6 +64,11 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
       })
   }, [open])
 
+  const handleClose = () => {
+    if (saving) return
+    onClose()
+  }
+
   async function save() {
     if (!carId || !renterName.trim() || !startDate) {
       setError('Car, renter name, and start date are required.')
@@ -70,6 +76,9 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
     }
     setSaving(true)
     setError(null)
+
+    const startStr = startDate.format('YYYY-MM-DD')
+    const endStr = endDate ? endDate.format('YYYY-MM-DD') : null
 
     const durationParsed = durationDays.trim() === '' ? null : Number(durationDays)
     const duration =
@@ -80,8 +89,8 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
       .insert({
         car_id: carId,
         renter_name: renterName.trim(),
-        start_date: startDate,
-        end_date: endDate.trim() === '' ? null : endDate,
+        start_date: startStr,
+        end_date: endStr,
         duration_days: duration,
         status: 'active',
         is_manual: isManual,
@@ -111,65 +120,89 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
   }
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" fullScreen={fullScreen} scroll="paper">
+    <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
       <DialogTitle>Start rental</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-        {error ? <Alert severity="error">{error}</Alert> : null}
-        <FormControl fullWidth>
-          <InputLabel id="car-label">Car (available)</InputLabel>
-          <Select
-            labelId="car-label"
-            label="Car (available)"
-            value={carId}
-            onChange={(e) => setCarId(e.target.value)}
-          >
-            {cars.map((c) => (
-              <MenuItem key={c.id} value={c.id}>
-                {c.name} — {c.plate}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <TextField label="Renter name" value={renterName} onChange={(e) => setRenterName(e.target.value)} required />
-        <TextField
-          label="Start date"
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }}
-          required
-        />
-        <TextField
-          label="End date (optional)"
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }}
-        />
-        <TextField
-          label="Duration (days, optional)"
-          value={durationDays}
-          onChange={(e) => setDurationDays(e.target.value)}
-          type="number"
-        />
-        <FormControlLabel
-          control={<Switch checked={isManual} onChange={(_, v) => setIsManual(v)} />}
-          label="Manual entry"
-        />
-        {isManual ? (
-          <TextField
-            label="Manual note"
-            value={manualNote}
-            onChange={(e) => setManualNote(e.target.value)}
-            multiline
-            minRows={2}
-          />
+      <DialogContent>
+        {error ? (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
         ) : null}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <FormControl fullWidth size="small">
+            <InputLabel id="car-label">Car (available)</InputLabel>
+            <Select
+              labelId="car-label"
+              label="Car (available)"
+              value={carId}
+              onChange={(e) => setCarId(e.target.value)}
+            >
+              {cars.map((c) => (
+                <MenuItem key={c.id} value={c.id}>
+                  {c.name} — {c.plate}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            size="small"
+            label="Renter name"
+            value={renterName}
+            onChange={(e) => setRenterName(e.target.value)}
+            required
+            fullWidth
+          />
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+              gap: 2,
+            }}
+          >
+            <DatePicker
+              label="Start date"
+              value={startDate}
+              onChange={(v) => setStartDate(v)}
+              slotProps={{ textField: { fullWidth: true, required: true, size: 'small' } }}
+            />
+            <DatePicker
+              label="End date (optional)"
+              value={endDate}
+              onChange={(v) => setEndDate(v)}
+              slotProps={{ textField: { fullWidth: true, size: 'small' } }}
+            />
+          </Box>
+          <TextField
+            size="small"
+            label="Duration (days, optional)"
+            value={durationDays}
+            onChange={(e) => setDurationDays(e.target.value)}
+            type="number"
+            fullWidth
+          />
+          <FormControlLabel
+            control={<Switch checked={isManual} onChange={(_, v) => setIsManual(v)} size="small" />}
+            label="Manual entry"
+          />
+          {isManual ? (
+            <TextField
+              size="small"
+              label="Manual note"
+              value={manualNote}
+              onChange={(e) => setManualNote(e.target.value)}
+              multiline
+              minRows={4}
+              fullWidth
+            />
+          ) : null}
+        </Box>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={handleClose} disabled={saving}>
+          Cancel
+        </Button>
         <Button variant="contained" onClick={() => void save()} disabled={saving}>
-          Start rental
+          {saving ? 'Starting…' : 'Start rental'}
         </Button>
       </DialogActions>
     </Dialog>
