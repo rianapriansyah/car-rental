@@ -42,9 +42,15 @@ export function createAppTheme(mode: 'light' | 'dark') {
       },
       MuiDialog: {
         styleOverrides: {
-          paper: {
+          paper: ({ theme }) => ({
             borderRadius: 8,
-          },
+            border: `1px solid ${theme.palette.mode === 'dark' ? 'hsla(220, 20%, 25%, 0.6)' : theme.palette.divider}`,
+            backgroundColor: theme.palette.mode === 'dark' ? '#34373d' : theme.palette.background.paper,
+            boxShadow:
+              theme.palette.mode === 'dark'
+                ? 'hsla(220, 30%, 5%, 0.7) 0px 4px 16px 0px, hsla(220, 25%, 10%, 0.8) 0px 8px 16px -5px'
+                : '0 16px 40px rgba(0,0,0,0.2)',
+          }),
         },
       },
       MuiDialogContent: {

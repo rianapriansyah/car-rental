@@ -34,8 +34,9 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
   const [startDate, setStartDate] = useState<Dayjs | null>(null)
   const [endDate, setEndDate] = useState<Dayjs | null>(null)
   const [durationDays, setDurationDays] = useState('')
+  const [downPayment, setDownPayment] = useState('')
   const [isManual, setIsManual] = useState(false)
-  const [manualNote, setManualNote] = useState('')
+  const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -47,8 +48,9 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
     setStartDate(null)
     setEndDate(null)
     setDurationDays('')
+    setDownPayment('')
     setIsManual(false)
-    setManualNote('')
+    setNote('')
     void supabase
       .from('v2_cars')
       .select('id, name, plate')
@@ -83,6 +85,12 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
     const durationParsed = durationDays.trim() === '' ? null : Number(durationDays)
     const duration =
       durationParsed !== null && Number.isFinite(durationParsed) ? Math.round(durationParsed) : null
+    const downPaymentValue = Number(downPayment.replace(/\D/g, '') || 0)
+    if (!Number.isFinite(downPaymentValue) || downPaymentValue < 0) {
+      setSaving(false)
+      setError('Down payment must be a valid non-negative amount.')
+      return
+    }
 
     const { data: rental, error: rError } = await supabase
       .from('v2_rentals')
@@ -92,9 +100,10 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
         start_date: startStr,
         end_date: endStr,
         duration_days: duration,
+        down_payment: downPaymentValue,
         status: 'active',
         is_manual: isManual,
-        manual_note: isManual && manualNote.trim() ? manualNote.trim() : null,
+        manual_note: note.trim() || null,
       })
       .select('id')
       .single()
@@ -180,21 +189,28 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
             type="number"
             fullWidth
           />
+          <TextField
+            size="small"
+            label="Down payment (IDR)"
+            value={downPayment}
+            onChange={(e) => setDownPayment(e.target.value)}
+            fullWidth
+            helperText="Optional. This is added to gross income when completing rental."
+          />
+          <TextField
+            size="small"
+            label="Note (e.g. fuel level, condition)"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            multiline
+            minRows={3}
+            fullWidth
+            placeholder="e.g. Fuel: ¾ tank. Minor scratch on rear bumper."
+          />
           <FormControlLabel
             control={<Switch checked={isManual} onChange={(_, v) => setIsManual(v)} size="small" />}
             label="Manual entry"
           />
-          {isManual ? (
-            <TextField
-              size="small"
-              label="Manual note"
-              value={manualNote}
-              onChange={(e) => setManualNote(e.target.value)}
-              multiline
-              minRows={4}
-              fullWidth
-            />
-          ) : null}
         </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>

@@ -22,6 +22,8 @@ import { useAuth } from '../../hooks/useAuth'
 const DRAWER_WIDTH = 260
 
 const nav = [
+  { to: '/internal/in-out', label: 'In / Out' },
+  { to: '/internal/renter-info', label: 'Renter Info' },
   { to: '/internal/cars', label: 'Cars' },
   { to: '/internal/partners', label: 'Partners' },
   { to: '/internal/rentals', label: 'Rentals' },

@@ -8,8 +8,10 @@ import { InternalLoginPage } from './portals/internal/InternalLoginPage'
 import { BootstrapAdminPage } from './portals/internal/BootstrapAdminPage'
 import { CarsPage } from './portals/internal/cars/CarsPage'
 import { PartnersPage } from './portals/internal/partners/PartnersPage'
+import { InOutPage } from './portals/internal/inout/InOutPage'
 import { RentalsPage } from './portals/internal/rentals/RentalsPage'
 import { TransactionsPage } from './portals/internal/transactions/TransactionsPage'
+import { RenterInfoPage } from './portals/internal/renterinfo/RenterInfoPage'
 import { SettingsPage } from './portals/internal/settings/SettingsPage'
 import { PartnerLayout } from './portals/partner/PartnerLayout'
 import { PartnerDashboardPage } from './portals/partner/PartnerDashboardPage'
@@ -35,7 +37,9 @@ export default function App() {
           <Route path="/internal/bootstrap-admin" element={<BootstrapAdminPage />} />
           <Route path="/internal" element={<AdminRoute />}>
             <Route element={<InternalLayout />}>
-              <Route index element={<Navigate to="cars" replace />} />
+              <Route index element={<Navigate to="in-out" replace />} />
+              <Route path="in-out" element={<InOutPage />} />
+              <Route path="renter-info" element={<RenterInfoPage />} />
               <Route path="cars" element={<CarsPage />} />
               <Route path="partners" element={<PartnersPage />} />
               <Route path="rentals" element={<RentalsPage />} />

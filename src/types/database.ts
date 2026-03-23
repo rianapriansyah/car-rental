@@ -35,6 +35,7 @@ export type Database = {
           ownership_type: string
           partner_id: string | null
           has_gps: boolean | null
+          daily_rate: number | null
           status: string
           photo_url: string | null
           notes: string | null
@@ -48,6 +49,7 @@ export type Database = {
           ownership_type: string
           partner_id?: string | null
           has_gps?: boolean | null
+          daily_rate?: number | null
           status?: string
           photo_url?: string | null
           notes?: string | null
@@ -61,6 +63,7 @@ export type Database = {
           ownership_type?: string
           partner_id?: string | null
           has_gps?: boolean | null
+          daily_rate?: number | null
           status?: string
           photo_url?: string | null
           notes?: string | null
@@ -107,14 +110,47 @@ export type Database = {
         }
         Relationships: []
       }
+      v2_renter_info: {
+        Row: {
+          id: string
+          name: string
+          phone: string | null
+          status: string
+          notes: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          phone?: string | null
+          status?: string
+          notes?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          phone?: string | null
+          status?: string
+          notes?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       v2_rentals: {
         Row: {
           id: string
           car_id: string
           renter_name: string
+          renter_phone: string | null
           start_date: string
+          start_time: string | null
           end_date: string | null
           duration_days: number | null
+          down_payment: number | null
           gross_income: number | null
           status: string
           is_manual: boolean | null
@@ -125,9 +161,12 @@ export type Database = {
           id?: string
           car_id: string
           renter_name: string
+          renter_phone?: string | null
           start_date: string
+          start_time?: string | null
           end_date?: string | null
           duration_days?: number | null
+          down_payment?: number | null
           gross_income?: number | null
           status?: string
           is_manual?: boolean | null
@@ -138,9 +177,12 @@ export type Database = {
           id?: string
           car_id?: string
           renter_name?: string
+          renter_phone?: string | null
           start_date?: string
+          start_time?: string | null
           end_date?: string | null
           duration_days?: number | null
+          down_payment?: number | null
           gross_income?: number | null
           status?: string
           is_manual?: boolean | null

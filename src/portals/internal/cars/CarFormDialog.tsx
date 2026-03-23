@@ -33,6 +33,7 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
   const [ownershipType, setOwnershipType] = useState<'rental' | 'partner'>('rental')
   const [partnerId, setPartnerId] = useState<string>('')
   const [hasGps, setHasGps] = useState(false)
+  const [dailyRate, setDailyRate] = useState('')
   const [photoUrl, setPhotoUrl] = useState('')
   const [notes, setNotes] = useState('')
   const [partners, setPartners] = useState<PartnerRow[]>([])
@@ -48,6 +49,7 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
     setOwnershipType((initial?.ownership_type as 'rental' | 'partner') ?? 'rental')
     setPartnerId(initial?.partner_id ?? '')
     setHasGps(initial?.has_gps ?? false)
+    setDailyRate(initial?.daily_rate != null ? String(initial.daily_rate) : '')
     setPhotoUrl(initial?.photo_url ?? '')
     setNotes(initial?.notes ?? '')
   }, [open, initial])
@@ -79,12 +81,14 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
     }
     setSaving(true)
     setError(null)
+    const dailyRateValue = dailyRate.trim() === '' ? null : Number(dailyRate)
     const payload = {
       name: name.trim(),
       plate: plate.trim(),
       ownership_type: ownershipType,
       partner_id: ownershipType === 'partner' && partnerId ? partnerId : null,
       has_gps: hasGps,
+      daily_rate: dailyRateValue != null && Number.isFinite(dailyRateValue) ? dailyRateValue : null,
       photo_url: photoUrl.trim() || null,
       notes: notes.trim() || null,
     }
@@ -202,11 +206,29 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
               </FormControl>
             ) : null}
           </Box>
-          <FormControlLabel
-            control={<Switch checked={hasGps} onChange={(_, v) => setHasGps(v)} size="small" />}
-            label="Has GPS"
-            sx={{ mb: 1 }}
-          />
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+              gap: 2,
+              mb: 1,
+              alignItems: 'center',
+            }}
+          >
+            <FormControlLabel
+              control={<Switch checked={hasGps} onChange={(_, v) => setHasGps(v)} size="small" />}
+              label="Has GPS"
+            />
+            <TextField
+              size="small"
+              label="Daily rate (IDR)"
+              value={dailyRate}
+              onChange={(e) => setDailyRate(e.target.value)}
+              type="number"
+              fullWidth
+              slotProps={{ htmlInput: { min: 0 } }}
+            />
+          </Box>
           <TextField
             size="small"
             label="Photo URL"

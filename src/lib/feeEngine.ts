@@ -6,10 +6,14 @@ import { supabase } from './supabase'
 export async function completeRentalWithIncome(
   rentalId: string,
   grossIncome: number,
+  combinedNote?: string,
 ): Promise<{ error: Error | null }> {
+  const patch: Record<string, unknown> = { gross_income: grossIncome }
+  if (combinedNote !== undefined) patch.manual_note = combinedNote || null
+
   const { error: updateError } = await supabase
     .from('v2_rentals')
-    .update({ gross_income: grossIncome })
+    .update(patch)
     .eq('id', rentalId)
 
   if (updateError) {

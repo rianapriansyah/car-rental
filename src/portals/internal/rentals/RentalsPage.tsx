@@ -16,7 +16,6 @@ import {
 } from '../../../components/InternalDataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
 import type { RentalWithCar } from '../../../types/rental'
-import { RentalFormDialog } from './RentalFormDialog'
 import { CompleteRentalDialog } from './CompleteRentalDialog'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
@@ -39,8 +38,7 @@ export function RentalsPage() {
   const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [formOpen, setFormOpen] = useState(false)
-  const [completeId, setCompleteId] = useState<string | null>(null)
+  const [completeRental, setCompleteRental] = useState<RentalWithCar | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
   const loadCars = useCallback(async () => {
@@ -151,7 +149,7 @@ export function RentalsPage() {
               size="small"
               onClick={(e) => {
                 e.stopPropagation()
-                setCompleteId(params.row.id)
+                setCompleteRental(params.row)
               }}
             >
               Complete
@@ -186,6 +184,7 @@ export function RentalsPage() {
               label="Car"
               value={draftCarFilter}
               onChange={(e) => setDraftCarFilter(e.target.value)}
+              slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
             >
               <MenuItem value="">
                 <em>All</em>
@@ -218,12 +217,6 @@ export function RentalsPage() {
         }
       />
 
-      <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' }, mb: 2 }}>
-        <Button variant="contained" fullWidth sx={{ maxWidth: { xs: '100%', sm: 220 } }} onClick={() => setFormOpen(true)}>
-          Start rental
-        </Button>
-      </Box>
-
       {error ? <Alert severity="error">{error}</Alert> : null}
       {!loading && rows.length === 0 ? (
         <Typography color="text.secondary">No rentals match the filters.</Typography>
@@ -250,11 +243,12 @@ export function RentalsPage() {
           />
         </Paper>
       )}
-      <RentalFormDialog open={formOpen} onClose={() => setFormOpen(false)} onSaved={() => void load()} />
       <CompleteRentalDialog
-        open={completeId !== null}
-        rentalId={completeId}
-        onClose={() => setCompleteId(null)}
+        open={completeRental !== null}
+        rentalId={completeRental?.id ?? null}
+        downPayment={Number(completeRental?.down_payment ?? 0)}
+        checkInNote={completeRental?.manual_note}
+        onClose={() => setCompleteRental(null)}
         onCompleted={() => void load()}
       />
     </Box>

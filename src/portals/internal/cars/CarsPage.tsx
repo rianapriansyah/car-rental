@@ -94,6 +94,12 @@ export function CarsPage() {
     () => [
       { field: 'name', headerName: 'Name', flex: 1, minWidth: 140 },
       { field: 'plate', headerName: 'Plate', width: 120 },
+      {
+        field: 'daily_rate',
+        headerName: 'Daily rate',
+        width: 130,
+        valueGetter: (_v, row) => row.daily_rate != null ? `Rp ${row.daily_rate.toLocaleString('id-ID')}` : '—',
+      },
       { field: 'ownership_type', headerName: 'Ownership', width: 130 },
       {
         field: 'partner',
