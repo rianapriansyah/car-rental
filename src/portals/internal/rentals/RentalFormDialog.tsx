@@ -73,7 +73,7 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
 
   async function save() {
     if (!carId || !renterName.trim() || !startDate) {
-      setError('Car, renter name, and start date are required.')
+      setError('Kendaraan, nama penyewa, dan tanggal mulai wajib diisi.')
       return
     }
     setSaving(true)
@@ -88,7 +88,7 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
     const downPaymentValue = Number(downPayment.replace(/\D/g, '') || 0)
     if (!Number.isFinite(downPaymentValue) || downPaymentValue < 0) {
       setSaving(false)
-      setError('Down payment must be a valid non-negative amount.')
+      setError('DP harus berupa angka yang valid.')
       return
     }
 
@@ -130,7 +130,7 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-      <DialogTitle>Start rental</DialogTitle>
+      <DialogTitle>Mulai Sewa</DialogTitle>
       <DialogContent>
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -139,10 +139,10 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
         ) : null}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <FormControl fullWidth size="small">
-            <InputLabel id="car-label">Car (available)</InputLabel>
+            <InputLabel id="car-label">Kendaraan (tersedia)</InputLabel>
             <Select
               labelId="car-label"
-              label="Car (available)"
+              label="Kendaraan (tersedia)"
               value={carId}
               onChange={(e) => setCarId(e.target.value)}
             >
@@ -155,7 +155,7 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
           </FormControl>
           <TextField
             size="small"
-            label="Renter name"
+            label="Nama penyewa"
             value={renterName}
             onChange={(e) => setRenterName(e.target.value)}
             required
@@ -169,13 +169,13 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
             }}
           >
             <DatePicker
-              label="Start date"
+              label="Tanggal mulai"
               value={startDate}
               onChange={(v) => setStartDate(v)}
               slotProps={{ textField: { fullWidth: true, required: true, size: 'small' } }}
             />
             <DatePicker
-              label="End date (optional)"
+              label="Tanggal selesai (opsional)"
               value={endDate}
               onChange={(v) => setEndDate(v)}
               slotProps={{ textField: { fullWidth: true, size: 'small' } }}
@@ -183,7 +183,7 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
           </Box>
           <TextField
             size="small"
-            label="Duration (days, optional)"
+            label="Durasi (hari, opsional)"
             value={durationDays}
             onChange={(e) => setDurationDays(e.target.value)}
             type="number"
@@ -191,34 +191,35 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
           />
           <TextField
             size="small"
-            label="Down payment (IDR)"
+            label="DP (IDR)"
             value={downPayment}
-            onChange={(e) => setDownPayment(e.target.value)}
+            onChange={(e) => setDownPayment(e.target.value.replace(/\D/g, ''))}
+            inputMode="numeric"
             fullWidth
-            helperText="Optional. This is added to gross income when completing rental."
+            helperText="Opsional. Dijumlahkan dengan pendapatan kotor saat selesai."
           />
           <TextField
             size="small"
-            label="Note (e.g. fuel level, condition)"
+            label="Catatan (mis. level bahan bakar, kondisi)"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             multiline
             minRows={3}
             fullWidth
-            placeholder="e.g. Fuel: ¾ tank. Minor scratch on rear bumper."
+            placeholder="mis. Bensin: ¾ tangki. Lecet kecil di bumper belakang."
           />
           <FormControlLabel
             control={<Switch checked={isManual} onChange={(_, v) => setIsManual(v)} size="small" />}
-            label="Manual entry"
+            label="Entri manual"
           />
         </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={handleClose} disabled={saving}>
-          Cancel
+          Batal
         </Button>
         <Button variant="contained" onClick={() => void save()} disabled={saving}>
-          {saving ? 'Starting…' : 'Start rental'}
+          {saving ? 'Memulai…' : 'Mulai sewa'}
         </Button>
       </DialogActions>
     </Dialog>

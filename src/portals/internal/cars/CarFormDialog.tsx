@@ -76,7 +76,7 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
 
   async function handleSave() {
     if (ownershipType === 'partner' && !partnerId) {
-      setError('Select a partner for partner-owned cars.')
+      setError('Pilih mitra untuk kendaraan milik mitra.')
       return
     }
     setSaving(true)
@@ -136,7 +136,7 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
   return (
     <>
       <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-        <DialogTitle>{initial ? 'Edit car' : 'Add car'}</DialogTitle>
+        <DialogTitle>{initial ? 'Ubah kendaraan' : 'Tambah kendaraan'}</DialogTitle>
         <DialogContent>
           {error ? (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -153,7 +153,7 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
           >
             <TextField
               size="small"
-              label="Name"
+              label="Nama"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
@@ -161,7 +161,7 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
             />
             <TextField
               size="small"
-              label="Plate"
+              label="Plat"
               value={plate}
               onChange={(e) => setPlate(e.target.value)}
               required
@@ -177,23 +177,23 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
             }}
           >
             <FormControl fullWidth size="small">
-              <InputLabel id="own-label">Ownership</InputLabel>
+              <InputLabel id="own-label">Kepemilikan</InputLabel>
               <Select
                 labelId="own-label"
-                label="Ownership"
+                label="Kepemilikan"
                 value={ownershipType}
                 onChange={(e) => setOwnershipType(e.target.value as 'rental' | 'partner')}
               >
-                <MenuItem value="rental">Rental (company)</MenuItem>
-                <MenuItem value="partner">Partner</MenuItem>
+                <MenuItem value="rental">Rental (perusahaan)</MenuItem>
+                <MenuItem value="partner">Mitra</MenuItem>
               </Select>
             </FormControl>
             {ownershipType === 'partner' ? (
               <FormControl fullWidth size="small">
-                <InputLabel id="p-label">Partner</InputLabel>
+                <InputLabel id="p-label">Mitra</InputLabel>
                 <Select
                   labelId="p-label"
-                  label="Partner"
+                  label="Mitra"
                   value={partnerId}
                   onChange={(e) => setPartnerId(e.target.value)}
                 >
@@ -217,11 +217,11 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
           >
             <FormControlLabel
               control={<Switch checked={hasGps} onChange={(_, v) => setHasGps(v)} size="small" />}
-              label="Has GPS"
+              label="GPS"
             />
             <TextField
               size="small"
-              label="Daily rate (IDR)"
+              label="Tarif harian (IDR)"
               value={dailyRate}
               onChange={(e) => setDailyRate(e.target.value)}
               type="number"
@@ -231,7 +231,7 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
           </Box>
           <TextField
             size="small"
-            label="Photo URL"
+            label="URL Foto"
             value={photoUrl}
             onChange={(e) => setPhotoUrl(e.target.value)}
             fullWidth
@@ -239,7 +239,7 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
           />
           <TextField
             size="small"
-            label="Notes"
+            label="Catatan"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             multiline
@@ -259,25 +259,25 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
           <span>
             {initial && !initial.deleted_at ? (
               <Button color="error" onClick={() => setConfirmDeleteOpen(true)} disabled={saving}>
-                Delete
+                Hapus
               </Button>
             ) : null}
           </span>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button onClick={handleClose} disabled={saving}>
-              Cancel
+              Batal
             </Button>
             <Button variant="contained" onClick={() => void handleSave()} disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? 'Menyimpan…' : 'Simpan'}
             </Button>
           </Box>
         </DialogActions>
       </Dialog>
       <ConfirmDialog
         open={confirmDeleteOpen}
-        title="Delete car?"
-        description="This marks the car as deleted. It will be hidden from the public fleet and partner portal."
-        confirmLabel="Delete"
+        title="Hapus kendaraan?"
+        description="Kendaraan ini akan ditandai sebagai dihapus dan tidak muncul di armada publik maupun portal mitra."
+        confirmLabel="Hapus"
         onCancel={() => setConfirmDeleteOpen(false)}
         onConfirm={() => void handleSoftDelete()}
       />

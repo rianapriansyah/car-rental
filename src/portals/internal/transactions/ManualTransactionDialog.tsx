@@ -52,7 +52,7 @@ export function ManualTransactionDialog({ open, carId, onClose, onSaved }: Props
   async function save() {
     const n = Number(amount.replace(/\D/g, ''))
     if (!Number.isFinite(n) || n <= 0) {
-      setError('Enter a valid amount (IDR).')
+      setError('Masukkan jumlah yang valid (IDR).')
       return
     }
     setSaving(true)
@@ -79,7 +79,7 @@ export function ManualTransactionDialog({ open, carId, onClose, onSaved }: Props
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-      <DialogTitle>Manual transaction</DialogTitle>
+      <DialogTitle>Transaksi Manual</DialogTitle>
       <DialogContent>
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -95,22 +95,22 @@ export function ManualTransactionDialog({ open, carId, onClose, onSaved }: Props
           }}
         >
           <FormControl fullWidth size="small">
-            <InputLabel id="t-label">Type</InputLabel>
+            <InputLabel id="t-label">Tipe</InputLabel>
             <Select
               labelId="t-label"
-              label="Type"
+              label="Tipe"
               value={type}
               onChange={(e) => setType(e.target.value as TransactionType)}
             >
-              <MenuItem value="income">Income</MenuItem>
-              <MenuItem value="expense">Expense</MenuItem>
+              <MenuItem value="income">Pemasukan</MenuItem>
+              <MenuItem value="expense">Pengeluaran</MenuItem>
             </Select>
           </FormControl>
           <FormControl fullWidth size="small">
-            <InputLabel id="c-label">Category</InputLabel>
+            <InputLabel id="c-label">Kategori</InputLabel>
             <Select
               labelId="c-label"
-              label="Category"
+              label="Kategori"
               value={category}
               onChange={(e) => setCategory(e.target.value as TransactionCategory)}
             >
@@ -124,21 +124,22 @@ export function ManualTransactionDialog({ open, carId, onClose, onSaved }: Props
         </Box>
         <TextField
           size="small"
-          label="Amount (IDR)"
+          label="Jumlah (IDR)"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))}
+          inputMode="numeric"
           fullWidth
           sx={{ mb: 2 }}
         />
         <DateTimePicker
-          label="Recorded at"
+          label="Dicatat pada"
           value={recordedAt}
           onChange={(v) => setRecordedAt(v ?? dayjs())}
           slotProps={{ textField: { fullWidth: true, size: 'small' } }}
         />
         <TextField
           size="small"
-          label="Note"
+          label="Catatan"
           value={manualNote}
           onChange={(e) => setManualNote(e.target.value)}
           multiline
@@ -149,10 +150,10 @@ export function ManualTransactionDialog({ open, carId, onClose, onSaved }: Props
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={handleClose} disabled={saving}>
-          Cancel
+          Batal
         </Button>
         <Button variant="contained" onClick={() => void save()} disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? 'Menyimpan…' : 'Simpan'}
         </Button>
       </DialogActions>
     </Dialog>

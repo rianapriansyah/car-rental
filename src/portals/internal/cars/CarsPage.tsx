@@ -17,6 +17,7 @@ import {
   searchPanelSelectSlotProps,
 } from '../../../components/InternalDataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
+import { formatIdr } from '../../../lib/formatIdr'
 import type { CarWithPartner } from '../../../types/car'
 import { CarFormDialog } from './CarFormDialog.tsx'
 
@@ -92,18 +93,20 @@ export function CarsPage() {
 
   const columns: GridColDef<CarWithPartner>[] = useMemo(
     () => [
-      { field: 'name', headerName: 'Name', flex: 1, minWidth: 140 },
-      { field: 'plate', headerName: 'Plate', width: 120 },
+      { field: 'name', headerName: 'Nama', flex: 1, minWidth: 140 },
+      { field: 'plate', headerName: 'Plat', width: 120 },
       {
         field: 'daily_rate',
-        headerName: 'Daily rate',
+        headerName: 'Tarif Harian',
         width: 130,
-        valueGetter: (_v, row) => row.daily_rate != null ? `Rp ${row.daily_rate.toLocaleString('id-ID')}` : '—',
+        align: 'right',
+        headerAlign: 'right',
+        valueGetter: (_v, row) => row.daily_rate != null ? formatIdr(row.daily_rate) : '—',
       },
-      { field: 'ownership_type', headerName: 'Ownership', width: 130 },
+      { field: 'ownership_type', headerName: 'Kepemilikan', width: 130 },
       {
         field: 'partner',
-        headerName: 'Partner',
+        headerName: 'Mitra',
         flex: 1,
         minWidth: 120,
         valueGetter: (_v, row) => row.v2_partners?.name ?? '—',
@@ -115,7 +118,7 @@ export function CarsPage() {
         renderCell: (params) => (
           <Chip
             size="small"
-            label={params.row.status}
+            label={params.row.status === 'available' ? 'Tersedia' : 'Disewa'}
             color={params.row.status === 'available' ? 'success' : 'warning'}
             sx={{ my: 0.5 }}
           />
@@ -125,11 +128,11 @@ export function CarsPage() {
         field: 'has_gps',
         headerName: 'GPS',
         width: 90,
-        valueGetter: (_v, row) => (row.has_gps ? 'Yes' : 'No'),
+        valueGetter: (_v, row) => (row.has_gps ? 'Ya' : 'Tidak'),
       },
       {
         field: 'actions',
-        headerName: 'Actions',
+        headerName: 'Aksi',
         width: 100,
         align: 'right',
         headerAlign: 'right',
@@ -145,7 +148,7 @@ export function CarsPage() {
               setDialogOpen(true)
             }}
           >
-            Edit
+            Ubah
           </Button>
         ),
       },
@@ -156,7 +159,7 @@ export function CarsPage() {
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
-        Cars
+        Kendaraan
       </Typography>
 
       <InternalDataGridSearchPanel
@@ -167,32 +170,32 @@ export function CarsPage() {
         onSubmit={handleSearch}
         onClear={handleClear}
         onCollapseExpanded={() => setExpanded(false)}
-        searchPlaceholder="Search name, plate, partner…"
+        searchPlaceholder="Cari nama, plat, mitra…"
         loading={loading}
         expandedContent={
           <>
             <TextField
               fullWidth
               size="small"
-              label="Plate"
+              label="Plat"
               value={plateFilter}
               onChange={(e) => setPlateFilter(e.target.value)}
-              placeholder="Contains…"
+              placeholder="Mengandung…"
             />
             <TextField
               select
               fullWidth
               size="small"
-              label="Ownership"
+              label="Kepemilikan"
               value={ownershipFilter}
               onChange={(e) => setOwnershipFilter(e.target.value)}
               slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
             >
               <MenuItem value="">
-                <em>All</em>
+                <em>Semua</em>
               </MenuItem>
-              <MenuItem value="rental">Rental (company)</MenuItem>
-              <MenuItem value="partner">Partner</MenuItem>
+              <MenuItem value="rental">Rental (perusahaan)</MenuItem>
+              <MenuItem value="partner">Mitra</MenuItem>
             </TextField>
             <TextField
               select
@@ -204,17 +207,17 @@ export function CarsPage() {
               slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
             >
               <MenuItem value="">
-                <em>All</em>
+                <em>Semua</em>
               </MenuItem>
-              <MenuItem value="available">Available</MenuItem>
-              <MenuItem value="rented">Rented</MenuItem>
+              <MenuItem value="available">Tersedia</MenuItem>
+              <MenuItem value="rented">Disewa</MenuItem>
             </TextField>
             <FormControlLabel
               sx={{ gridColumn: { xs: '1', sm: '1 / -1', md: '1 / -1' }, alignSelf: 'center', m: 0 }}
               control={
                 <Switch checked={includeDeleted} onChange={(_, v) => setIncludeDeleted(v)} size="small" />
               }
-              label="Include deleted cars"
+              label="Tampilkan yang dihapus"
             />
           </>
         }
@@ -230,17 +233,17 @@ export function CarsPage() {
             setDialogOpen(true)
           }}
         >
-          Add car
+          Tambah kendaraan
         </Button>
       </Box>
 
       {error ? <Alert severity="error">{error}</Alert> : null}
       {!loading && rows.length === 0 ? (
-        <Typography color="text.secondary">No cars yet.</Typography>
+        <Typography color="text.secondary">Belum ada kendaraan.</Typography>
       ) : (
         <Box sx={{ width: '100%', minWidth: 0 }}>
           <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
-            {loading ? 'Loading…' : `${filteredRows.length} car${filteredRows.length === 1 ? '' : 's'}`}
+            {loading ? 'Memuat…' : `${filteredRows.length} kendaraan`}
           </Typography>
           <Paper
             sx={{

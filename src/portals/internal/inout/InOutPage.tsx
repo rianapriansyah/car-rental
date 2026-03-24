@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   Chip,
-  Divider,
   FormControl,
   FormControlLabel,
   InputLabel,
@@ -12,6 +11,8 @@ import {
   Paper,
   Select,
   Switch,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material'
@@ -71,13 +72,6 @@ function calcCost(elapsedHours: number, dailyRate: number, overtimeRate: number)
 
 type CarOption = { id: string; name: string; plate: string }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2, fontSize: { xs: '1rem', sm: '1.1rem' } }}>
-      {children}
-    </Typography>
-  )
-}
 
 function buildCombinedNote(checkIn: string, checkOut: string): string | undefined {
   const ci = checkIn.trim()
@@ -136,12 +130,12 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
 
   async function handleSave() {
     if (!carId || !renterName.trim() || !startDate) {
-      setError('Car, renter name, and start date are required.')
+      setError('Kendaraan, nama penyewa, dan tanggal mulai wajib diisi.')
       return
     }
     const downPaymentValue = Number(downPayment.replace(/\D/g, '') || 0)
     if (!Number.isFinite(downPaymentValue) || downPaymentValue < 0) {
-      setError('Down payment must be a valid non-negative amount.')
+      setError('DP harus berupa angka yang valid.')
       return
     }
     setSaving(true)
@@ -208,7 +202,7 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
 
     setSaving(false)
     const carName = cars.find((c) => c.id === carId)?.name ?? 'Car'
-    setSuccess(`${carName} rented to ${renterName.trim()}. Rental started.`)
+    setSuccess(`${carName} disewakan ke ${renterName.trim()}. Sewa dimulai.`)
     reset()
     onSaved()
   }
@@ -219,15 +213,15 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
       {success ? <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert> : null}
 
       <FormControl fullWidth size="small">
-        <InputLabel id="ci-car">Car (available)</InputLabel>
+        <InputLabel id="ci-car">Kendaraan (tersedia)</InputLabel>
         <Select
           labelId="ci-car"
-          label="Car (available)"
+          label="Kendaraan (tersedia)"
           value={carId}
           onChange={(e) => setCarId(e.target.value)}
         >
           {cars.length === 0 ? (
-            <MenuItem disabled value=""><em>No available cars</em></MenuItem>
+            <MenuItem disabled value=""><em>Tidak ada kendaraan tersedia</em></MenuItem>
           ) : null}
           {cars.map((c) => (
             <MenuItem key={c.id} value={c.id}>{c.name} — {c.plate}</MenuItem>
@@ -238,7 +232,7 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
         <TextField
           size="small"
-          label="Renter name"
+          label="Nama penyewa"
           value={renterName}
           onChange={(e) => setRenterName(e.target.value)}
           required
@@ -246,24 +240,24 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
         />
         <TextField
           size="small"
-          label="Phone number (optional)"
+          label="Nomor HP (opsional)"
           value={renterPhone}
           onChange={(e) => setRenterPhone(e.target.value.replace(/\D/g, ''))}
           fullWidth
           inputMode="numeric"
-          placeholder="e.g. 081234567890"
+          placeholder="mis. 081234567890"
         />
       </Box>
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
         <DatePicker
-          label="Start date"
+          label="Tanggal mulai"
           value={startDate}
           onChange={(v) => setStartDate(v)}
           slotProps={{ textField: { fullWidth: true, required: true, size: 'small' } }}
         />
         <TimePicker
-          label="Start time (24h)"
+          label="Jam mulai (24 jam)"
           value={startTime}
           onChange={(v) => setStartTime(v)}
           ampm={false}
@@ -274,7 +268,7 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
         <TextField
           size="small"
-          label="Duration (days, optional)"
+          label="Durasi (hari, opsional)"
           value={durationDays}
           onChange={(e) => setDurationDays(e.target.value.replace(/\D/g, ''))}
           inputMode="numeric"
@@ -282,35 +276,35 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
         />
         <TextField
           size="small"
-          label="Down payment (IDR)"
+          label="DP (IDR)"
           value={downPayment}
           onChange={(e) => setDownPayment(e.target.value.replace(/\D/g, ''))}
           inputMode="numeric"
           fullWidth
-          helperText="Added to gross income on completion."
+          helperText="Ditambahkan ke pendapatan kotor saat selesai."
         />
       </Box>
 
       <TextField
         size="small"
-        label="Note (e.g. fuel level, condition)"
+        label="Catatan (mis. level bahan bakar, kondisi)"
         value={note}
         onChange={(e) => setNote(e.target.value)}
         multiline
         minRows={3}
         fullWidth
-        placeholder="e.g. Fuel: ¾ tank. Minor scratch on rear bumper."
+        placeholder="mis. Bensin: ¾ tangki. Lecet kecil di bumper belakang."
       />
 
       <FormControlLabel
         control={<Switch checked={isManual} onChange={(_, v) => setIsManual(v)} size="small" />}
-        label="Manual entry"
+        label="Entri manual"
       />
 
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
         <Button variant="outlined" onClick={reset} disabled={saving}>Reset</Button>
         <Button variant="contained" onClick={() => void handleSave()} disabled={saving}>
-          {saving ? 'Starting…' : 'Start rental'}
+          {saving ? 'Memulai…' : 'Mulai sewa'}
         </Button>
       </Box>
     </Box>
@@ -383,12 +377,12 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     if (!selectedId) return
     const grossInput = Number(gross.replace(/\D/g, ''))
     if (!Number.isFinite(grossInput) || grossInput < 0) {
-      setError('Enter a valid gross income amount (IDR).')
+      setError('Masukkan jumlah pendapatan kotor yang valid (IDR).')
       return
     }
     const totalGrossIncome = downPayment + grossInput
     if (totalGrossIncome <= 0) {
-      setError('Total gross income (down payment + completion amount) must be greater than 0.')
+      setError('Total pendapatan kotor (DP + jumlah saat selesai) harus lebih dari 0.')
       return
     }
     setBusy(true)
@@ -448,7 +442,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
 
     setBusy(false)
     const label = selected?.renter_name ?? 'Rental'
-    setSuccess(`${label} completed. Total: ${formatIdr(totalGrossIncome)}.`)
+    setSuccess(`${label} selesai. Total: ${formatIdr(totalGrossIncome)}.`)
     setSelectedId('')
     setGross('')
     setCheckOutNote('')
@@ -464,10 +458,10 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
       {success ? <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert> : null}
 
       <FormControl fullWidth size="small">
-        <InputLabel id="co-rental">Active rental</InputLabel>
+        <InputLabel id="co-rental">Sewa aktif</InputLabel>
         <Select
           labelId="co-rental"
-          label="Active rental"
+          label="Sewa aktif"
           value={selectedId}
           onChange={(e) => {
             setSelectedId(e.target.value)
@@ -481,7 +475,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         >
           {activeRentals.length === 0 ? (
             <MenuItem disabled value="">
-              <em>{loadingRentals ? 'Loading…' : 'No active rentals'}</em>
+              <em>{loadingRentals ? 'Memuat…' : 'Tidak ada sewa aktif'}</em>
             </MenuItem>
           ) : null}
           {activeRentals.map((r) => (
@@ -495,8 +489,8 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
       {selected ? (
         <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
-            <Chip size="small" label={`Start: ${selected.start_date}`} />
-            {selected.end_date ? <Chip size="small" label={`End: ${selected.end_date}`} /> : null}
+            <Chip size="small" label={`Mulai: ${selected.start_date}`} />
+            {selected.end_date ? <Chip size="small" label={`Selesai: ${selected.end_date}`} /> : null}
             {downPayment > 0 ? (
               <Chip size="small" color="info" label={`DP: ${formatIdr(downPayment)}`} />
             ) : null}
@@ -507,7 +501,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
       {checkInNote ? (
         <Box>
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            Check-in note
+            Catatan Check-in
           </Typography>
           <Paper
             variant="outlined"
@@ -523,15 +517,15 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
       {selected ? (
         <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 0.75 }}>
-            Rate reference
+            Referensi Tarif
           </Typography>
           <Typography variant="body2" sx={{ mb: 0.5 }}>
-            Elapsed:{' '}
+            Berlangsung:{' '}
             <strong>
               {formatElapsed(calcElapsedHours(selected.start_date, selected.start_time ?? null))}
             </strong>
             {selected.start_time ? (
-              <Typography component="span" variant="caption" color="text.secondary"> (since {selected.start_date} {selected.start_time})</Typography>
+              <Typography component="span" variant="caption" color="text.secondary"> (sejak {selected.start_date} {selected.start_time})</Typography>
             ) : null}
           </Typography>
           {costBreakdown ? (
@@ -549,14 +543,14 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
               ) : null}
               {downPayment > 0 ? (
                 <Typography variant="body2">
-                  Still to collect: <strong>{formatIdr(Math.max(0, costBreakdown.total - downPayment))}</strong>
+                  Sisa tagihan: <strong>{formatIdr(Math.max(0, costBreakdown.total - downPayment))}</strong>
                 </Typography>
               ) : null}
-              <Typography variant="caption" color="text.secondary">For reference only — enter the actual amount below.</Typography>
+              <Typography variant="caption" color="text.secondary">Hanya referensi — masukkan jumlah aktual di bawah.</Typography>
             </>
           ) : (
             <Typography variant="caption" color="text.secondary">
-              {selected.v2_cars?.daily_rate == null ? 'No daily rate set for this car.' : null}
+              {selected.v2_cars?.daily_rate == null ? 'Tarif harian belum diatur untuk kendaraan ini.' : null}
             </Typography>
           )}
         </Paper>
@@ -564,7 +558,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
 
       <TextField
         size="small"
-        label="Gross income at completion (IDR)"
+        label="Pendapatan kotor saat selesai (IDR)"
         value={gross}
         onChange={(e) => setGross(e.target.value.replace(/\D/g, ''))}
         inputMode="numeric"
@@ -572,28 +566,28 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         disabled={!selectedId}
         helperText={
           downPayment > 0
-            ? `Down payment ${formatIdr(downPayment)} will be added automatically.`
-            : 'Enter the remaining amount collected from the renter.'
+            ? `DP ${formatIdr(downPayment)} akan ditambahkan otomatis.`
+            : 'Masukkan sisa tagihan yang diterima dari penyewa.'
         }
       />
 
       {selectedId && gross ? (
         <Typography variant="body2" color="text.secondary">
-          Total gross income:{' '}
+          Total pendapatan kotor:{' '}
           <strong>{formatIdr(downPayment + Number(gross.replace(/\D/g, '') || 0))}</strong>
         </Typography>
       ) : null}
 
       <TextField
         size="small"
-        label="Check-out note (optional)"
+        label="Catatan check-out (opsional)"
         value={checkOutNote}
         onChange={(e) => setCheckOutNote(e.target.value)}
         multiline
         minRows={3}
         fullWidth
         disabled={!selectedId}
-        placeholder="e.g. Fuel: ½ tank returned. Charged extra for fuel difference."
+        placeholder="mis. Bensin: ½ tangki dikembalikan. Dikenakan biaya kekurangan bensin."
       />
 
       <FormControlLabel
@@ -609,26 +603,26 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
             disabled={!selectedId}
           />
         }
-        label={<Typography variant="body2" color={blacklist ? 'error' : 'text.secondary'}>Blacklist this renter</Typography>}
+        label={<Typography variant="body2" color={blacklist ? 'error' : 'text.secondary'}>Blokir penyewa ini</Typography>}
       />
 
       {blacklist ? (
         <TextField
           size="small"
-          label="Blacklist notes"
+          label="Alasan pemblokiran"
           value={blacklistNote}
           onChange={(e) => setBlacklistNote(e.target.value)}
           multiline
           minRows={2}
           fullWidth
-          placeholder="Reason for blacklisting…"
+          placeholder="Alasan pemblokiran…"
           color="error"
         />
       ) : null}
 
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
         <Button variant="contained" color="success" onClick={() => void handleComplete()} disabled={busy || !selectedId}>
-          {busy ? 'Completing…' : 'Complete rental'}
+          {busy ? 'Menyelesaikan…' : 'Selesaikan sewa'}
         </Button>
       </Box>
     </Box>
@@ -639,34 +633,30 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
 
 export function InOutPage() {
   const [refreshTick, setRefreshTick] = useState(0)
+  const [tab, setTab] = useState(0)
   const bump = () => setRefreshTick((n) => n + 1)
 
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 3 }}>
-        In / Out
+        Masuk / Keluar
       </Typography>
 
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' },
-          gap: 3,
-          alignItems: 'start',
-        }}
-      >
-        <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}>
-          <SectionTitle>Check In — Start rental</SectionTitle>
-          <Divider sx={{ mb: 2.5 }} />
-          <CheckInPanel onSaved={bump} />
-        </Paper>
+      <Paper variant="outlined">
+        <Tabs
+          value={tab}
+          onChange={(_, v: number) => setTab(v)}
+          sx={{ borderBottom: 1, borderColor: 'divider', px: 1 }}
+        >
+          <Tab label="Check In — Mulai Sewa" />
+          <Tab label="Check Out — Selesaikan Sewa" />
+        </Tabs>
 
-        <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}>
-          <SectionTitle>Check Out — Complete rental</SectionTitle>
-          <Divider sx={{ mb: 2.5 }} />
-          <CheckOutPanel refreshTick={refreshTick} onCompleted={bump} />
-        </Paper>
-      </Box>
+        <Box sx={{ p: { xs: 2, sm: 3 } }}>
+          {tab === 0 ? <CheckInPanel onSaved={bump} /> : null}
+          {tab === 1 ? <CheckOutPanel refreshTick={refreshTick} onCompleted={bump} /> : null}
+        </Box>
+      </Paper>
     </Box>
   )
 }

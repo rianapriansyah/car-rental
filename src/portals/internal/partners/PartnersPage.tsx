@@ -68,19 +68,19 @@ export function PartnersPage() {
 
   const columns: GridColDef<PartnerRow>[] = useMemo(
     () => [
-      { field: 'name', headerName: 'Name', flex: 1, minWidth: 140 },
+      { field: 'name', headerName: 'Nama', flex: 1, minWidth: 140 },
       { field: 'email', headerName: 'Email', flex: 1, minWidth: 180 },
       {
         field: 'phone',
-        headerName: 'Phone',
+        headerName: 'Telepon',
         width: 140,
         valueGetter: (_v, row) => row.phone ?? '—',
       },
       {
         field: 'linked',
-        headerName: 'Linked user',
-        width: 150,
-        valueGetter: (_v, row) => (row.auth_user_id ? 'Yes' : 'Pending invite'),
+        headerName: 'Akun terhubung',
+        width: 160,
+        valueGetter: (_v, row) => (row.auth_user_id ? 'Ya' : 'Menunggu undangan'),
       },
     ],
     [],
@@ -89,7 +89,7 @@ export function PartnersPage() {
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
-        Partners
+        Mitra
       </Typography>
 
       <InternalDataGridSearchPanel
@@ -100,40 +100,40 @@ export function PartnersPage() {
         onSubmit={handleSearch}
         onClear={handleClear}
         onCollapseExpanded={() => setExpanded(false)}
-        searchPlaceholder="Search name, email, phone…"
+        searchPlaceholder="Cari nama, email, telepon…"
         loading={loading}
         expandedContent={
           <TextField
             select
             fullWidth
             size="small"
-            label="Linked user"
+            label="Akun terhubung"
             value={linkedFilter}
             onChange={(e) => setLinkedFilter(e.target.value)}
             slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
           >
             <MenuItem value="">
-              <em>All</em>
+              <em>Semua</em>
             </MenuItem>
-            <MenuItem value="yes">Yes</MenuItem>
-            <MenuItem value="pending">Pending invite</MenuItem>
+            <MenuItem value="yes">Ya</MenuItem>
+            <MenuItem value="pending">Menunggu undangan</MenuItem>
           </TextField>
         }
       />
 
       <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' }, mb: 2 }}>
         <Button variant="contained" fullWidth sx={{ maxWidth: { xs: '100%', sm: 200 } }} onClick={() => setDialogOpen(true)}>
-          Add partner
+          Tambah mitra
         </Button>
       </Box>
 
       {error ? <Alert severity="error">{error}</Alert> : null}
       {!loading && rows.length === 0 ? (
-        <Typography color="text.secondary">No partners yet.</Typography>
+        <Typography color="text.secondary">Belum ada mitra.</Typography>
       ) : (
         <Box sx={{ width: '100%', minWidth: 0 }}>
           <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
-            {loading ? 'Loading…' : `${filteredRows.length} partner${filteredRows.length === 1 ? '' : 's'}`}
+            {loading ? 'Memuat…' : `${filteredRows.length} mitra`}
           </Typography>
           <Paper
             sx={{

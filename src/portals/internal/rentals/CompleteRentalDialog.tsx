@@ -45,12 +45,12 @@ export function CompleteRentalDialog({ open, rentalId, downPayment, checkInNote,
     if (!rentalId) return
     const grossInput = Number(gross.replace(/\D/g, ''))
     if (!Number.isFinite(grossInput) || grossInput < 0) {
-      setError('Enter a valid gross income amount (IDR).')
+      setError('Masukkan jumlah pendapatan kotor yang valid (IDR).')
       return
     }
     const totalGrossIncome = downPayment + grossInput
     if (totalGrossIncome <= 0) {
-      setError('Total gross income (down payment + completion amount) must be greater than 0.')
+      setError('Total pendapatan kotor (DP + jumlah saat selesai) harus lebih dari 0.')
       return
     }
     setBusy(true)
@@ -70,7 +70,7 @@ export function CompleteRentalDialog({ open, rentalId, downPayment, checkInNote,
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="xs">
-      <DialogTitle>Complete rental</DialogTitle>
+      <DialogTitle>Selesaikan Sewa</DialogTitle>
       <DialogContent>
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -81,7 +81,7 @@ export function CompleteRentalDialog({ open, rentalId, downPayment, checkInNote,
         {checkInNote ? (
           <Box sx={{ mb: 2 }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Check-in note
+              Catatan Check-in
             </Typography>
             <Paper variant="outlined" sx={{ p: 1.25, mt: 0.5, borderRadius: 2, bgcolor: 'action.hover' }}>
               <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
@@ -93,34 +93,35 @@ export function CompleteRentalDialog({ open, rentalId, downPayment, checkInNote,
 
         <TextField
           size="small"
-          label="Gross income at completion (IDR)"
+          label="Pendapatan kotor saat selesai (IDR)"
           value={gross}
-          onChange={(e) => setGross(e.target.value)}
+          onChange={(e) => setGross(e.target.value.replace(/\D/g, ''))}
+          inputMode="numeric"
           fullWidth
           sx={{ mb: 2 }}
           helperText={
             downPayment > 0
-              ? `Down payment ${formatIdr(downPayment)} is automatically added.`
+              ? `DP ${formatIdr(downPayment)} otomatis ditambahkan.`
               : undefined
           }
         />
         <TextField
           size="small"
-          label="Check-out note (optional)"
+          label="Catatan check-out (opsional)"
           value={checkOutNote}
           onChange={(e) => setCheckOutNote(e.target.value)}
           multiline
           minRows={3}
           fullWidth
-          placeholder="e.g. Fuel: ½ tank returned. Charged extra for fuel difference."
+            placeholder="mis. Bensin: ½ tangki dikembalikan. Dikenakan biaya kekurangan bensin."
         />
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={handleClose} disabled={busy}>
-          Cancel
+          Batal
         </Button>
         <Button variant="contained" onClick={() => void submit()} disabled={busy || !rentalId}>
-          {busy ? 'Completing…' : 'Complete'}
+          {busy ? 'Menyelesaikan…' : 'Selesaikan'}
         </Button>
       </DialogActions>
     </Dialog>

@@ -92,7 +92,7 @@ export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-      <DialogTitle>Add partner</DialogTitle>
+      <DialogTitle>Tambah mitra</DialogTitle>
       <DialogContent>
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -110,7 +110,7 @@ export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
           >
             <TextField
               size="small"
-              label="Name"
+              label="Nama"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
@@ -124,19 +124,19 @@ export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
               onChange={(e) => setEmail(e.target.value)}
               required
               fullWidth
-              helperText="Invitation email (Edge Function must be deployed)."
+              helperText="Email undangan (Edge Function harus sudah di-deploy)."
             />
           </Box>
           <TextField
             size="small"
-            label="Phone"
+            label="Telepon"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             fullWidth
           />
           <TextField
             size="small"
-            label="Notes"
+            label="Catatan"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             multiline
@@ -147,10 +147,10 @@ export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={handleClose} disabled={saving}>
-          Cancel
+          Batal
         </Button>
         <Button variant="contained" onClick={() => void handleSave()} disabled={saving}>
-          {saving ? 'Saving…' : 'Save & invite'}
+          {saving ? 'Menyimpan…' : 'Simpan & undang'}
         </Button>
       </DialogActions>
     </Dialog>

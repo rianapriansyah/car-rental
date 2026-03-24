@@ -15,12 +15,24 @@ import {
   searchPanelSelectSlotProps,
 } from '../../../components/InternalDataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
+import { formatIdr } from '../../../lib/formatIdr'
 import type { RentalWithCar } from '../../../types/rental'
 import { CompleteRentalDialog } from './CompleteRentalDialog'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
+const STATUS_LABELS: Record<string, string> = { active: 'Aktif', completed: 'Selesai', cancelled: 'Dibatalkan' }
+
 type CarFilter = { id: string; name: string }
+
+function calcDurationLabel(row: RentalWithCar): string {
+  if (row.status === 'cancelled') return '—'
+  const start = new Date(row.start_date)
+  const end = row.end_date ? new Date(row.end_date) : new Date()
+  const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+  if (row.status === 'active') return `${days} hari (aktif)`
+  return `${days} hari`
+}
 
 function rentalSearchBlob(row: RentalWithCar): string {
   const car = row.v2_cars ? `${row.v2_cars.name} ${row.v2_cars.plate}` : ''
@@ -108,36 +120,54 @@ export function RentalsPage() {
     () => [
       {
         field: 'car',
-        headerName: 'Car',
+        headerName: 'Kendaraan',
         flex: 1,
         minWidth: 200,
         valueGetter: (_v, row) =>
           row.v2_cars ? `${row.v2_cars.name} (${row.v2_cars.plate})` : '—',
       },
-      { field: 'renter_name', headerName: 'Renter', width: 160 },
-      { field: 'start_date', headerName: 'Start', width: 120 },
+      { field: 'renter_name', headerName: 'Penyewa', width: 160 },
+      { field: 'start_date', headerName: 'Mulai', width: 120 },
       {
-        field: 'end_date',
-        headerName: 'End',
-        width: 120,
-        valueGetter: (_v, row) => row.end_date ?? '—',
+        field: 'duration',
+        headerName: 'Durasi',
+        width: 140,
+        valueGetter: (_v, row) => calcDurationLabel(row),
+      },
+      {
+        field: 'down_payment',
+        headerName: 'DP',
+        width: 130,
+        align: 'right',
+        headerAlign: 'right',
+        valueGetter: (_v, row) => row.down_payment != null && row.down_payment > 0 ? formatIdr(Number(row.down_payment)) : '—',
+      },
+      {
+        field: 'gross_income',
+        headerName: 'Pendapatan Kotor',
+        width: 150,
+        align: 'right',
+        headerAlign: 'right',
+        valueGetter: (_v, row) => row.gross_income != null ? formatIdr(Number(row.gross_income)) : '—',
       },
       {
         field: 'status',
         headerName: 'Status',
         width: 130,
-        renderCell: (params) => <Chip size="small" label={params.row.status} sx={{ my: 0.5 }} />,
+        renderCell: (params) => (
+          <Chip size="small" label={STATUS_LABELS[params.row.status] ?? params.row.status} sx={{ my: 0.5 }} />
+        ),
       },
       {
         field: 'is_manual',
         headerName: 'Manual',
         width: 100,
-        valueGetter: (_v, row) => (row.is_manual ? 'Yes' : 'No'),
+        valueGetter: (_v, row) => (row.is_manual ? 'Ya' : 'Tidak'),
       },
       {
         field: 'actions',
-        headerName: 'Actions',
-        width: 120,
+        headerName: 'Aksi',
+        width: 130,
         align: 'right',
         headerAlign: 'right',
         sortable: false,
@@ -152,7 +182,7 @@ export function RentalsPage() {
                 setCompleteRental(params.row)
               }}
             >
-              Complete
+              Selesaikan
             </Button>
           ) : null,
       },
@@ -163,7 +193,7 @@ export function RentalsPage() {
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
-        Rentals
+        Sewa
       </Typography>
 
       <InternalDataGridSearchPanel
@@ -173,7 +203,7 @@ export function RentalsPage() {
         onExpandedToggle={() => setExpanded((x) => !x)}
         onSubmit={handleSearch}
         onClear={handleClear}
-        searchPlaceholder="Search renter, car, plate…"
+        searchPlaceholder="Cari penyewa, kendaraan, plat…"
         loading={loading}
         expandedContent={
           <>
@@ -181,13 +211,13 @@ export function RentalsPage() {
               select
               fullWidth
               size="small"
-              label="Car"
+              label="Kendaraan"
               value={draftCarFilter}
               onChange={(e) => setDraftCarFilter(e.target.value)}
               slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
             >
               <MenuItem value="">
-                <em>All</em>
+                <em>Semua</em>
               </MenuItem>
               {cars.map((c) => (
                 <MenuItem key={c.id} value={c.id}>
@@ -205,11 +235,11 @@ export function RentalsPage() {
               slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
             >
               <MenuItem value="">
-                <em>All</em>
+                <em>Semua</em>
               </MenuItem>
               {statusOptions.map((s) => (
                 <MenuItem key={s} value={s}>
-                  {s}
+                  {STATUS_LABELS[s] ?? s}
                 </MenuItem>
               ))}
             </TextField>
@@ -219,7 +249,7 @@ export function RentalsPage() {
 
       {error ? <Alert severity="error">{error}</Alert> : null}
       {!loading && rows.length === 0 ? (
-        <Typography color="text.secondary">No rentals match the filters.</Typography>
+        <Typography color="text.secondary">Tidak ada sewa yang sesuai.</Typography>
       ) : (
         <Paper
           sx={{

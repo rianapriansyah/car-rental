@@ -26,13 +26,13 @@ type RenterInfo = Tables<'v2_renter_info'>
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
 const STATUS_OPTIONS = [
-  { value: 'active', label: 'Active' },
-  { value: 'blacklisted', label: 'Blacklisted' },
+  { value: 'active', label: 'Aktif' },
+  { value: 'blacklisted', label: 'Diblokir' },
 ]
 
 function statusChip(status: string) {
-  if (status === 'blacklisted') return <Chip size="small" label="Blacklisted" color="error" />
-  return <Chip size="small" label="Active" color="success" />
+  if (status === 'blacklisted') return <Chip size="small" label="Diblokir" color="error" />
+  return <Chip size="small" label="Aktif" color="success" />
 }
 
 function matchesKeyword(row: RenterInfo, q: string): boolean {
@@ -72,7 +72,7 @@ function RenterInfoFormDialog({ open, initial, onClose, onSaved }: FormDialogPro
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) {
-      setError('Name is required.')
+      setError('Nama wajib diisi.')
       return
     }
     setSaving(true)
@@ -104,13 +104,13 @@ function RenterInfoFormDialog({ open, initial, onClose, onSaved }: FormDialogPro
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{initial ? 'Edit renter info' : 'Add renter info'}</DialogTitle>
+      <DialogTitle>{initial ? 'Ubah info penyewa' : 'Tambah info penyewa'}</DialogTitle>
       <DialogContent>
         <Box component="form" id="renter-info-form" onSubmit={(e) => void handleSubmit(e)} sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 0.5 }}>
           {error ? <Alert severity="error">{error}</Alert> : null}
           <TextField
             size="small"
-            label="Name"
+            label="Nama"
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
@@ -119,11 +119,11 @@ function RenterInfoFormDialog({ open, initial, onClose, onSaved }: FormDialogPro
           />
           <TextField
             size="small"
-            label="Phone number"
+            label="Nomor HP"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             fullWidth
-            placeholder="e.g. 081234567890"
+            placeholder="mis. 081234567890"
           />
           <TextField
             size="small"
@@ -139,20 +139,20 @@ function RenterInfoFormDialog({ open, initial, onClose, onSaved }: FormDialogPro
           </TextField>
           <TextField
             size="small"
-            label="Notes"
+            label="Catatan"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             multiline
             minRows={3}
             fullWidth
-            placeholder="e.g. Blacklisted for damage to vehicle."
+            placeholder="mis. Diblokir karena kerusakan kendaraan."
           />
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} disabled={saving}>Cancel</Button>
+        <Button onClick={onClose} disabled={saving}>Batal</Button>
         <Button type="submit" form="renter-info-form" variant="contained" disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? 'Menyimpan…' : 'Simpan'}
         </Button>
       </DialogActions>
     </Dialog>
@@ -230,15 +230,15 @@ export function RenterInfoPage() {
   }
 
   const columns: GridColDef<RenterInfo>[] = [
-    { field: 'name', headerName: 'Name', flex: 1.2, minWidth: 140 },
-    { field: 'phone', headerName: 'Phone', flex: 1, minWidth: 130, valueGetter: (v) => v ?? '—' },
+    { field: 'name', headerName: 'Nama', flex: 1.2, minWidth: 140 },
+    { field: 'phone', headerName: 'Telepon', flex: 1, minWidth: 130, valueGetter: (v) => v ?? '—' },
     {
       field: 'status',
       headerName: 'Status',
       width: 130,
       renderCell: (p) => statusChip(p.value as string),
     },
-    { field: 'notes', headerName: 'Notes', flex: 2, minWidth: 180, valueGetter: (v) => v ?? '—' },
+    { field: 'notes', headerName: 'Catatan', flex: 2, minWidth: 180, valueGetter: (v) => v ?? '—' },
     {
       field: '_actions',
       headerName: '',
@@ -253,10 +253,10 @@ export function RenterInfoPage() {
               setDialogOpen(true)
             }}
           >
-            Edit
+            Ubah
           </Button>
           <Button size="small" color="error" onClick={() => setDeleteTarget(p.row)}>
-            Delete
+            Hapus
           </Button>
         </Box>
       ),
@@ -266,7 +266,7 @@ export function RenterInfoPage() {
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 3 }}>
-        Renter Info
+        Info Penyewa
       </Typography>
 
       <InternalDataGridSearchPanel
@@ -276,7 +276,7 @@ export function RenterInfoPage() {
         onExpandedToggle={() => setExpanded((v) => !v)}
         onSubmit={handleSearch}
         onClear={handleClear}
-        searchPlaceholder="Search by name, phone, or notes…"
+        searchPlaceholder="Cari nama, telepon, atau catatan…"
         loading={loading}
         onCollapseExpanded={collapseExpanded}
         expandedContent={
@@ -289,7 +289,7 @@ export function RenterInfoPage() {
             fullWidth
             slotProps={{ select: searchPanelSelectSlotProps(collapseExpanded) }}
           >
-            <MenuItem value="">All statuses</MenuItem>
+            <MenuItem value="">Semua status</MenuItem>
             {STATUS_OPTIONS.map((o) => (
               <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
             ))}
@@ -305,7 +305,7 @@ export function RenterInfoPage() {
             setDialogOpen(true)
           }}
         >
-          Add renter
+          Tambah penyewa
         </Button>
       </Box>
 
@@ -332,8 +332,8 @@ export function RenterInfoPage() {
 
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete renter info"
-        description={`Remove "${deleteTarget?.name ?? ''}" from renter info? This cannot be undone.`}
+        title="Hapus info penyewa"
+        description={`Hapus "${deleteTarget?.name ?? ''}" dari info penyewa? Tindakan ini tidak bisa dibatalkan.`}
         onConfirm={() => void handleDelete()}
         onCancel={() => setDeleteTarget(null)}
       />

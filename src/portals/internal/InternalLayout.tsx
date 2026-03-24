@@ -22,13 +22,13 @@ import { useAuth } from '../../hooks/useAuth'
 const DRAWER_WIDTH = 260
 
 const nav = [
-  { to: '/internal/in-out', label: 'In / Out' },
-  { to: '/internal/renter-info', label: 'Renter Info' },
-  { to: '/internal/cars', label: 'Cars' },
-  { to: '/internal/partners', label: 'Partners' },
-  { to: '/internal/rentals', label: 'Rentals' },
-  { to: '/internal/transactions', label: 'Transactions' },
-  { to: '/internal/settings', label: 'Settings' },
+  { to: '/internal/in-out', label: 'Masuk / Keluar' },
+  { to: '/internal/renter-info', label: 'Info Penyewa' },
+  { to: '/internal/cars', label: 'Kendaraan' },
+  { to: '/internal/partners', label: 'Mitra' },
+  { to: '/internal/rentals', label: 'Sewa' },
+  { to: '/internal/transactions', label: 'Transaksi' },
+  { to: '/internal/settings', label: 'Pengaturan' },
 ]
 
 function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
@@ -84,14 +84,14 @@ export function InternalLayout() {
               <MenuIcon />
             </IconButton>
             <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-              Internal dashboard
+              Dashboard Internal
             </Typography>
             <Button color="inherit" component={Link} to="/public" size="small" sx={{ minHeight: 40, textTransform: 'none' }}>
               <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
-                Public fleet
+                Armada Publik
               </Box>
               <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>
-                Fleet
+                Armada
               </Box>
             </Button>
             <Button
@@ -103,7 +103,7 @@ export function InternalLayout() {
                 navigate('/internal/login', { replace: true })
               }}
             >
-              Sign out
+              Keluar
             </Button>
           </Toolbar>
         </AppBar>
