@@ -24,7 +24,6 @@ export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
   const [phone, setPhone] = useState('')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [info, setInfo] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   function reset() {
@@ -33,7 +32,6 @@ export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
     setPhone('')
     setNotes('')
     setError(null)
-    setInfo(null)
   }
 
   const handleClose = () => {
@@ -45,7 +43,6 @@ export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
   async function handleSave() {
     setSaving(true)
     setError(null)
-    setInfo(null)
 
     const { data: inserted, error: insertError } = await supabase
       .from('v2_partners')
@@ -60,18 +57,17 @@ export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
 
     if (insertError || !inserted) {
       setSaving(false)
-      setError(insertError?.message ?? 'Insert failed')
+      setError(insertError?.message ?? 'Gagal menyimpan mitra.')
       return
     }
 
     const invite = await invitePartnerByEmail(email.trim())
     if (!invite.ok) {
-      setInfo(
-        `Partner saved, but invite failed: ${invite.message}. Link auth_user_id manually or deploy the invite-partner Edge Function.`,
-      )
       setSaving(false)
+      setError(
+        `Mitra tersimpan, tetapi undangan gagal: ${invite.message}. Periksa fungsi Edge invite-partner sudah di-deploy dan URL redirect /partner/accept-invite ada di pengaturan Auth Supabase.`,
+      )
       onSaved()
-      handleClose()
       return
     }
 
@@ -99,7 +95,6 @@ export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
             {error}
           </Alert>
         ) : null}
-        {info ? <Alert severity="info" sx={{ mb: 2 }}>{info}</Alert> : null}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Box
             sx={{
@@ -124,7 +119,7 @@ export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
               onChange={(e) => setEmail(e.target.value)}
               required
               fullWidth
-              helperText="Email undangan (Edge Function harus sudah di-deploy)."
+              helperText="Undangan dikirim lewat email; deploy fungsi Edge invite-partner dan tambahkan URL /partner/accept-invite di Auth."
             />
           </Box>
           <TextField

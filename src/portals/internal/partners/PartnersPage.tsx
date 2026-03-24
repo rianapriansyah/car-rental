@@ -6,6 +6,7 @@ import {
   searchPanelSelectSlotProps,
 } from '../../../components/InternalDataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
+import { invitePartnerByEmail } from '../../../lib/invitePartner'
 import type { PartnerRow } from '../../../types/partner'
 import { PartnerFormDialog } from './PartnerFormDialog.tsx'
 
@@ -23,6 +24,7 @@ export function PartnersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [invitingId, setInvitingId] = useState<string | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
   const [keyword, setKeyword] = useState('')
@@ -44,6 +46,30 @@ export function PartnersPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  const resendInvite = useCallback(
+    async (row: PartnerRow) => {
+      setInvitingId(row.id)
+      setError(null)
+      const invite = await invitePartnerByEmail(row.email)
+      if (!invite.ok) {
+        setError(`Undangan gagal: ${invite.message}`)
+        setInvitingId(null)
+        return
+      }
+      const { error: uErr } = await supabase
+        .from('v2_partners')
+        .update({ auth_user_id: invite.userId })
+        .eq('id', row.id)
+      setInvitingId(null)
+      if (uErr) {
+        setError(uErr.message)
+        return
+      }
+      void load()
+    },
+    [load],
+  )
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
@@ -82,8 +108,29 @@ export function PartnersPage() {
         width: 160,
         valueGetter: (_v, row) => (row.auth_user_id ? 'Ya' : 'Menunggu undangan'),
       },
+      {
+        field: 'actions',
+        headerName: 'Aksi',
+        width: 150,
+        sortable: false,
+        filterable: false,
+        disableColumnMenu: true,
+        renderCell: (params) =>
+          !params.row.auth_user_id ? (
+            <Button
+              size="small"
+              disabled={invitingId === params.row.id}
+              onClick={(e) => {
+                e.stopPropagation()
+                void resendInvite(params.row)
+              }}
+            >
+              {invitingId === params.row.id ? 'Mengirim…' : 'Kirim undangan'}
+            </Button>
+          ) : null,
+      },
     ],
-    [],
+    [invitingId, resendInvite],
   )
 
   return (

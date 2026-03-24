@@ -1,0 +1,5 @@
+# Supabase local / CLI config. Link your project with: supabase link
+# Deploy invite function: supabase functions deploy invite-partner
+
+[functions.invite-partner]
+verify_jwt = true

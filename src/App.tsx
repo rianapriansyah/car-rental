@@ -16,6 +16,7 @@ import { SettingsPage } from './portals/internal/settings/SettingsPage'
 import { PartnerLayout } from './portals/partner/PartnerLayout'
 import { PartnerDashboardPage } from './portals/partner/PartnerDashboardPage'
 import { PartnerLoginPage } from './portals/partner/PartnerLoginPage'
+import { PartnerAcceptInvitePage } from './portals/partner/PartnerAcceptInvitePage'
 import { PublicFleetPage } from './portals/public/PublicFleetPage'
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/public" element={<PublicFleetPage />} />
 
           <Route path="/partner/login" element={<PartnerLoginPage />} />
+          <Route path="/partner/accept-invite" element={<PartnerAcceptInvitePage />} />
           <Route path="/partner" element={<PartnerRoute />}>
             <Route element={<PartnerLayout />}>
               <Route index element={<PartnerDashboardPage />} />
