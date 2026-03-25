@@ -88,6 +88,7 @@ export type Database = {
           phone: string | null
           auth_user_id: string | null
           notes: string | null
+          verified: boolean
           created_at: string | null
         }
         Insert: {
@@ -97,6 +98,7 @@ export type Database = {
           phone?: string | null
           auth_user_id?: string | null
           notes?: string | null
+          verified?: boolean
           created_at?: string | null
         }
         Update: {
@@ -106,6 +108,7 @@ export type Database = {
           phone?: string | null
           auth_user_id?: string | null
           notes?: string | null
+          verified?: boolean
           created_at?: string | null
         }
         Relationships: []

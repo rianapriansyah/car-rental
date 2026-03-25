@@ -34,7 +34,7 @@ const CATEGORY_OPTIONS: TransactionCategory[] = [
   'other',
 ]
 
-type CarOption = { id: string; name: string }
+type CarOption = { id: string; name: string; ownership_type: string | null }
 
 type TransactionGridRow = TransactionRow & { runningBalance: number }
 
@@ -68,7 +68,7 @@ export function TransactionsPage() {
   const loadCars = useCallback(async () => {
     const { data, error: qError } = await supabase
       .from('v2_cars')
-      .select('id, name')
+      .select('id, name, ownership_type')
       .is('deleted_at', null)
       .order('name')
     if (qError) {
@@ -121,6 +121,11 @@ export function TransactionsPage() {
     void loadTx()
   }, [loadTx])
 
+  const isPartnerCar = useMemo(
+    () => cars.find((c) => c.id === carId)?.ownership_type === 'partner',
+    [cars, carId],
+  )
+
   const { financials, gridRows, filteredGridRows, tableFiltersActive } = useMemo(() => {
     let b = 0
     const out: TransactionGridRow[] = []
@@ -143,11 +148,13 @@ export function TransactionsPage() {
       }
     }
 
-    // fee_rental = (total_income - total_expense_ops) * fee_pct / 100
-    // We prefer using recorded partner_fee if present, otherwise calculate
-    const feeRental = totalPartnerFee > 0
-      ? totalPartnerFee
-      : Math.round((totalIncome - totalExpenseOps) * feePct / 100)
+    // For partner-owned cars: use recorded partner_fee rows if present, otherwise calculate.
+    // For rental-owned cars: no management fee applies.
+    const feeRental = isPartnerCar
+      ? (totalPartnerFee > 0
+          ? totalPartnerFee
+          : Math.round((totalIncome - totalExpenseOps) * feePct / 100))
+      : 0
     const nettForPartner = totalIncome - totalExpenseOps - feeRental
 
     const filtered = out.filter((t) => {
@@ -178,7 +185,7 @@ export function TransactionsPage() {
       filteredGridRows: tableFiltersActive ? runningFiltered : out,
       tableFiltersActive,
     }
-  }, [rows, keyword, typeFilter, categoryFilter, autoFeeFilter, feePct])
+  }, [rows, keyword, typeFilter, categoryFilter, autoFeeFilter, feePct, isPartnerCar])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -349,7 +356,7 @@ export function TransactionsPage() {
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 1.5 }}>
             Rincian Keuangan — {month}
           </Typography>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr 1fr' }, gap: 2 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: isPartnerCar ? '1fr 1fr 1fr 1fr' : '1fr 1fr 1fr' }, gap: 2 }}>
             <Box>
               <Typography variant="caption" color="text.secondary">Total Pemasukan</Typography>
               <Typography variant="subtitle2" color="success.main" fontWeight={700}>{formatIdr(financials.totalIncome)}</Typography>
@@ -358,15 +365,25 @@ export function TransactionsPage() {
               <Typography variant="caption" color="text.secondary">Total Pengeluaran</Typography>
               <Typography variant="subtitle2" color="error.main" fontWeight={700}>{formatIdr(financials.totalExpenseOps)}</Typography>
             </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary">Biaya Pengelolaan ({feePct}%)</Typography>
-              <Typography variant="subtitle2" color="warning.main" fontWeight={700}>{formatIdr(financials.feeRental)}</Typography>
-            </Box>
-            <Box>
-              <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' }, mr: 2 }} />
-              <Typography variant="caption" color="text.secondary">Neto Mitra</Typography>
-              <Typography variant="subtitle2" fontWeight={700}>{formatIdr(financials.nettForPartner)}</Typography>
-            </Box>
+            {isPartnerCar ? (
+              <>
+                <Box>
+                  <Typography variant="caption" color="text.secondary">Biaya Pengelolaan ({feePct}%)</Typography>
+                  <Typography variant="subtitle2" color="warning.main" fontWeight={700}>{formatIdr(financials.feeRental)}</Typography>
+                </Box>
+                <Box>
+                  <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' }, mr: 2 }} />
+                  <Typography variant="caption" color="text.secondary">Neto Mitra</Typography>
+                  <Typography variant="subtitle2" fontWeight={700}>{formatIdr(financials.nettForPartner)}</Typography>
+                </Box>
+              </>
+            ) : (
+              <Box>
+                <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' }, mr: 2 }} />
+                <Typography variant="caption" color="text.secondary">Saldo Bersih</Typography>
+                <Typography variant="subtitle2" fontWeight={700}>{formatIdr(financials.nettForPartner)}</Typography>
+              </Box>
+            )}
           </Box>
           {tableFiltersActive ? (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>

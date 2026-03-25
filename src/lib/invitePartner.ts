@@ -1,33 +1,41 @@
 import { supabase } from './supabase'
-import { getPartnerInviteRedirectUrl } from './partnerInviteRedirect'
 
 export type InvitePartnerResult =
   | { ok: true; userId: string }
   | { ok: false; message: string }
 
-export type InvitePartnerOptions = {
-  /** Override redirect after invite email (default: current app origin + `/partner/accept-invite`). */
-  redirectTo?: string
+export type InvitePartnerPayload = {
+  name: string
+  email: string
+  phone?: string | null
+  notes?: string | null
 }
 
 /**
- * Invites a partner via Edge Function `invite-partner` (admin JWT + service_role inviteUserByEmail).
+ * Creates a partner record and sends an invite email in one atomic call via the
+ * Edge Function `invite-partner`. The function handles the DB insert + auth invite
+ * server-side (redirect URL is configured as an env var on the function).
  * Deploy: `supabase functions deploy invite-partner`
- * Add `https://<your-app>/partner/accept-invite` (and localhost for dev) under Auth → URL configuration.
  */
-export async function invitePartnerByEmail(
-  email: string,
-  options?: InvitePartnerOptions,
-): Promise<InvitePartnerResult> {
-  const redirectTo = options?.redirectTo ?? getPartnerInviteRedirectUrl()
-
+export async function invitePartner(payload: InvitePartnerPayload): Promise<InvitePartnerResult> {
   const { data, error } = await supabase.functions.invoke<{ userId?: string; error?: string }>(
     'invite-partner',
-    { body: { email: email.trim(), redirectTo } },
+    {
+      body: {
+        name: payload.name.trim(),
+        email: payload.email.trim().toLowerCase(),
+        phone: payload.phone?.trim() || null,
+        notes: payload.notes?.trim() || null,
+      },
+    },
   )
 
   if (error) {
-    return { ok: false, message: error.message }
+    // supabase.functions.invoke wraps non-2xx as a generic error; try to extract
+    // the actual message from the response body before falling back.
+    const body = await (error.context as Response | undefined)?.json?.().catch(() => null) as { error?: string } | null
+    const msg = body?.error ?? error.message
+    return { ok: false, message: msg }
   }
 
   if (data && typeof data === 'object' && 'error' in data && data.error) {

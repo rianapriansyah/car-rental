@@ -1,4 +1,6 @@
 /// <reference path="./deno-shim.d.ts" />
+// Deploy: supabase functions deploy invite-partner --no-verify-jwt
+// Set secret: supabase secrets set INVITE_REDIRECT_URL=https://<your-app>/partner/accept-invite
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 
 const corsHeaders = {
@@ -6,23 +8,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-/**
- * Only allow redirects to our partner invite completion route (admin-only caller, but keep strict).
- */
-function sanitizeInviteRedirect(raw: string | undefined): string | undefined {
-  if (!raw?.trim()) return undefined
-  let url: URL
-  try {
-    url = new URL(raw.trim())
-  } catch {
-    return undefined
-  }
-  const okProto =
-    url.protocol === 'https:' || (url.protocol === 'http:' && url.hostname === 'localhost')
-  if (!okProto) return undefined
-  const path = url.pathname.replace(/\/$/, '') || '/'
-  if (path !== '/partner/accept-invite') return undefined
-  return url.toString()
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
 }
 
 async function findUserIdByEmail(
@@ -48,71 +38,80 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  if (req.method !== 'POST') {
+    return jsonResponse({ error: 'Method not allowed' }, 405)
+  }
+
   try {
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing Authorization' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    if (!authHeader?.startsWith('Bearer ')) {
+      return jsonResponse({ error: 'Missing or invalid Authorization' }, 401)
+    }
+
+    // Decode JWT inline — no extra HTTP round-trip
+    const token = authHeader.slice('Bearer '.length).trim()
+    let jwtPayload: Record<string, unknown>
+    try {
+      const payloadB64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+      jwtPayload = JSON.parse(atob(payloadB64)) as Record<string, unknown>
+    } catch {
+      return jsonResponse({ error: 'Unauthorized' }, 401)
+    }
+
+    const exp = jwtPayload['exp'] as number | undefined
+    if (!exp || Math.floor(Date.now() / 1000) > exp) {
+      return jsonResponse({ error: 'Unauthorized' }, 401)
+    }
+
+    const appMeta = jwtPayload['app_metadata'] as Record<string, unknown> | undefined
+    if (appMeta?.['role'] !== 'admin') {
+      return jsonResponse({ error: 'Forbidden' }, 403)
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    })
-
-    const {
-      data: { user },
-      error: userError,
-    } = await userClient.auth.getUser()
-
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    if (!supabaseUrl || !serviceRoleKey) {
+      return jsonResponse({ error: 'Server misconfigured' }, 500)
     }
 
-    const role =
-      user.app_metadata && typeof user.app_metadata === 'object' && 'role' in user.app_metadata
-        ? (user.app_metadata as { role?: unknown }).role
-        : undefined
-
-    if (role !== 'admin') {
-      return new Response(JSON.stringify({ error: 'Forbidden' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const body = (await req.json()) as { email?: string; redirectTo?: string }
-    const email = body.email?.trim()
+    const body = (await req.json()) as { email?: string; name?: string; phone?: string | null; notes?: string | null }
+    const email = body.email?.trim().toLowerCase()
+    const name = body.name?.trim() || email
+    const phone = body.phone?.trim() || null
+    const notes = body.notes?.trim() || null
     if (!email) {
-      return new Response(JSON.stringify({ error: 'email is required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonResponse({ error: 'email is required' }, 400)
     }
 
-    const redirectTo = sanitizeInviteRedirect(body.redirectTo)
+    // Redirect URL is configured server-side — set via:
+    // supabase secrets set INVITE_REDIRECT_URL=https://<your-app>/partner/accept-invite
+    const redirectTo = Deno.env.get('INVITE_REDIRECT_URL')?.trim() || undefined
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    const inviteOpts = redirectTo ? { redirectTo } : undefined
+    // Ensure a v2_partners row exists before sending the invite email.
+    // Using upsert with ignoreDuplicates=true so resend-invite doesn't overwrite.
+    const { error: upsertErr } = await adminClient
+      .from('v2_partners')
+      .upsert(
+        { name: name!, email, phone, notes, verified: false },
+        { onConflict: 'email', ignoreDuplicates: true },
+      )
+    if (upsertErr) {
+      console.error('Failed to upsert v2_partners:', upsertErr.message)
+      // Non-fatal: partner row may already exist; continue with invite
+    }
 
-    const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, inviteOpts)
+    const { data, error } = await adminClient.auth.admin.inviteUserByEmail(
+      email,
+      { ...(redirectTo ? { redirectTo } : {}) },
+    )
 
     if (!error && data?.user?.id) {
-      return new Response(JSON.stringify({ userId: data.user.id }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return jsonResponse({ userId: data.user.id })
     }
 
     const msg = error?.message?.toLowerCase() ?? ''
@@ -125,22 +124,14 @@ Deno.serve(async (req) => {
     if (already) {
       const existingId = await findUserIdByEmail(adminClient, email)
       if (existingId) {
-        return new Response(JSON.stringify({ userId: existingId, reused: true }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return jsonResponse({ userId: existingId, reused: true })
       }
     }
 
-    return new Response(JSON.stringify({ error: error?.message ?? 'Invite failed' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return jsonResponse({ error: error?.message ?? 'Invite failed' }, 400)
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Server error'
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    console.error('Unhandled exception:', message)
+    return jsonResponse({ error: message }, 500)
   }
 })

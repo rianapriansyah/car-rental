@@ -28,10 +28,14 @@ export function PartnerLoginPage() {
   const checking = authLoading || (!!user && partnerLoading)
 
   useEffect(() => {
-    if (user && !partnerLoading && !partner) {
-      setError('No partner profile is linked to this account.')
-    } else if (partner) {
-      setError(null)
+    if (user && !partnerLoading) {
+      if (!partner) {
+        setError('Tidak ada profil mitra yang terhubung dengan akun ini.')
+      } else if (!partner.verified) {
+        setError('Akun Anda belum diverifikasi. Silakan hubungi admin.')
+      } else {
+        setError(null)
+      }
     }
   }, [user, partner, partnerLoading])
 

@@ -59,6 +59,7 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
     void supabase
       .from('v2_partners')
       .select('*')
+      .eq('verified', true)
       .order('name')
       .then(({ data, error: qError }) => {
         if (qError) {

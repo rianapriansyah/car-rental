@@ -1,12 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Box, Button, MenuItem, Paper, TextField, Typography } from '@mui/material'
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  MenuItem,
+  Paper,
+  TextField,
+  Typography,
+} from '@mui/material'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import {
   InternalDataGridSearchPanel,
   searchPanelSelectSlotProps,
 } from '../../../components/InternalDataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
-import { invitePartnerByEmail } from '../../../lib/invitePartner'
+import { invitePartner } from '../../../lib/invitePartner'
+import { deletePartner } from '../../../lib/deletePartner'
 import type { PartnerRow } from '../../../types/partner'
 import { PartnerFormDialog } from './PartnerFormDialog.tsx'
 
@@ -25,11 +40,13 @@ export function PartnersPage() {
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [invitingId, setInvitingId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<PartnerRow | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
   const [keyword, setKeyword] = useState('')
   const [expanded, setExpanded] = useState(false)
-  const [linkedFilter, setLinkedFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -51,19 +68,10 @@ export function PartnersPage() {
     async (row: PartnerRow) => {
       setInvitingId(row.id)
       setError(null)
-      const invite = await invitePartnerByEmail(row.email)
-      if (!invite.ok) {
-        setError(`Undangan gagal: ${invite.message}`)
-        setInvitingId(null)
-        return
-      }
-      const { error: uErr } = await supabase
-        .from('v2_partners')
-        .update({ auth_user_id: invite.userId })
-        .eq('id', row.id)
+      const result = await invitePartner({ name: row.name, email: row.email, phone: row.phone, notes: row.notes })
       setInvitingId(null)
-      if (uErr) {
-        setError(uErr.message)
+      if (!result.ok) {
+        setError(`Undangan gagal: ${result.message}`)
         return
       }
       void load()
@@ -71,14 +79,29 @@ export function PartnersPage() {
     [load],
   )
 
+  const handleDelete = useCallback(async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setError(null)
+    const result = await deletePartner(deleteTarget.id, deleteTarget.auth_user_id)
+    setDeleting(false)
+    if (!result.ok) {
+      setError(result.message)
+      setDeleteTarget(null)
+      return
+    }
+    setDeleteTarget(null)
+    void load()
+  }, [deleteTarget, load])
+
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
       if (!matchesKeyword(row, keyword)) return false
-      if (linkedFilter === 'yes' && !row.auth_user_id) return false
-      if (linkedFilter === 'pending' && row.auth_user_id) return false
+      if (statusFilter === 'verified' && !row.verified) return false
+      if (statusFilter === 'pending' && row.verified) return false
       return true
     })
-  }, [rows, keyword, linkedFilter])
+  }, [rows, keyword, statusFilter])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -87,7 +110,7 @@ export function PartnersPage() {
 
   const handleClear = () => {
     setKeyword('')
-    setLinkedFilter('')
+    setStatusFilter('')
     setExpanded(false)
     setPaginationModel((m) => ({ ...m, page: 0 }))
   }
@@ -103,31 +126,52 @@ export function PartnersPage() {
         valueGetter: (_v, row) => row.phone ?? '—',
       },
       {
-        field: 'linked',
-        headerName: 'Akun terhubung',
+        field: 'verified',
+        headerName: 'Status',
         width: 160,
-        valueGetter: (_v, row) => (row.auth_user_id ? 'Ya' : 'Menunggu undangan'),
+        renderCell: (params) => {
+          if (params.row.verified) {
+            return <Chip size="small" label="Terverifikasi" color="success" variant="outlined" />
+          }
+          if (params.row.auth_user_id) {
+            return <Chip size="small" label="Terhubung" color="primary" variant="outlined" />
+          }
+          return <Chip size="small" label="Menunggu verifikasi" color="default" variant="outlined" />
+        },
       },
       {
         field: 'actions',
         headerName: 'Aksi',
-        width: 150,
+        width: 220,
         sortable: false,
         filterable: false,
         disableColumnMenu: true,
-        renderCell: (params) =>
-          !params.row.auth_user_id ? (
+        renderCell: (params) => (
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', height: '100%' }}>
+            {!params.row.verified && (
+              <Button
+                size="small"
+                disabled={invitingId === params.row.id}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void resendInvite(params.row)
+                }}
+              >
+                {invitingId === params.row.id ? 'Mengirim…' : 'Kirim ulang'}
+              </Button>
+            )}
             <Button
               size="small"
-              disabled={invitingId === params.row.id}
+              color="error"
               onClick={(e) => {
                 e.stopPropagation()
-                void resendInvite(params.row)
+                setDeleteTarget(params.row)
               }}
             >
-              {invitingId === params.row.id ? 'Mengirim…' : 'Kirim undangan'}
+              Hapus
             </Button>
-          ) : null,
+          </Box>
+        ),
       },
     ],
     [invitingId, resendInvite],
@@ -154,16 +198,16 @@ export function PartnersPage() {
             select
             fullWidth
             size="small"
-            label="Akun terhubung"
-            value={linkedFilter}
-            onChange={(e) => setLinkedFilter(e.target.value)}
+            label="Status"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
             slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
           >
             <MenuItem value="">
               <em>Semua</em>
             </MenuItem>
-            <MenuItem value="yes">Ya</MenuItem>
-            <MenuItem value="pending">Menunggu undangan</MenuItem>
+            <MenuItem value="verified">Terverifikasi</MenuItem>
+            <MenuItem value="pending">Menunggu verifikasi</MenuItem>
           </TextField>
         }
       />
@@ -206,6 +250,23 @@ export function PartnersPage() {
         </Box>
       )}
       <PartnerFormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
+
+      <Dialog open={!!deleteTarget} onClose={() => !deleting && setDeleteTarget(null)}>
+        <DialogTitle>Hapus mitra?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Anda yakin ingin menghapus <strong>{deleteTarget?.name}</strong>? Tindakan ini tidak dapat dibatalkan.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)} disabled={deleting}>
+            Batal
+          </Button>
+          <Button color="error" variant="contained" disabled={deleting} onClick={() => void handleDelete()}>
+            {deleting ? 'Menghapus…' : 'Hapus'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

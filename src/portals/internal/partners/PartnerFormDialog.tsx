@@ -9,8 +9,7 @@ import {
   DialogTitle,
   TextField,
 } from '@mui/material'
-import { supabase } from '../../../lib/supabase'
-import { invitePartnerByEmail } from '../../../lib/invitePartner'
+import { invitePartner } from '../../../lib/invitePartner'
 
 type Props = {
   open: boolean
@@ -41,44 +40,18 @@ export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
   }
 
   async function handleSave() {
-    setSaving(true)
     setError(null)
-
-    const { data: inserted, error: insertError } = await supabase
-      .from('v2_partners')
-      .insert({
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim() || null,
-        notes: notes.trim() || null,
-      })
-      .select('id')
-      .single()
-
-    if (insertError || !inserted) {
-      setSaving(false)
-      setError(insertError?.message ?? 'Gagal menyimpan mitra.')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Format email tidak valid.')
       return
     }
 
-    const invite = await invitePartnerByEmail(email.trim())
-    if (!invite.ok) {
-      setSaving(false)
-      setError(
-        `Mitra tersimpan, tetapi undangan gagal: ${invite.message}. Periksa fungsi Edge invite-partner sudah di-deploy dan URL redirect /partner/accept-invite ada di pengaturan Auth Supabase.`,
-      )
-      onSaved()
-      return
-    }
-
-    const { error: updateError } = await supabase
-      .from('v2_partners')
-      .update({ auth_user_id: invite.userId })
-      .eq('id', inserted.id)
+    setSaving(true)
+    const result = await invitePartner({ name, email, phone, notes })
 
     setSaving(false)
-    if (updateError) {
-      setError(updateError.message)
+    if (!result.ok) {
+      setError(result.message)
       return
     }
 
@@ -119,7 +92,6 @@ export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
               onChange={(e) => setEmail(e.target.value)}
               required
               fullWidth
-              helperText="Undangan dikirim lewat email; deploy fungsi Edge invite-partner dan tambahkan URL /partner/accept-invite di Auth."
             />
           </Box>
           <TextField
@@ -144,8 +116,8 @@ export function PartnerFormDialog({ open, onClose, onSaved }: Props) {
         <Button onClick={handleClose} disabled={saving}>
           Batal
         </Button>
-        <Button variant="contained" onClick={() => void handleSave()} disabled={saving}>
-          {saving ? 'Menyimpan…' : 'Simpan & undang'}
+        <Button variant="contained" onClick={() => void handleSave()} disabled={saving || !name.trim() || !email.trim()}>
+          {saving ? 'Mengundang…' : 'Simpan & undang'}
         </Button>
       </DialogActions>
     </Dialog>
