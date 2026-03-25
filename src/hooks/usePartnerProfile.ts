@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { PartnerRow } from '../types/partner'
 
@@ -6,6 +6,11 @@ export function usePartnerProfile(authUserId: string | undefined) {
   const [partner, setPartner] = useState<PartnerRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [fetchNonce, setFetchNonce] = useState(0)
+
+  const refetch = useCallback(() => {
+    setFetchNonce((n) => n + 1)
+  }, [])
 
   useEffect(() => {
     if (!authUserId) {
@@ -37,7 +42,7 @@ export function usePartnerProfile(authUserId: string | undefined) {
     return () => {
       cancelled = true
     }
-  }, [authUserId])
+  }, [authUserId, fetchNonce])
 
-  return { partner, loading, error }
+  return { partner, loading, error, refetch }
 }

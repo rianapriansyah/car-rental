@@ -18,10 +18,13 @@ import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { InternalAppearanceBar } from '../../components/InternalAppearanceBar'
 import { useAuth } from '../../hooks/useAuth'
+import { isAdminUser } from '../../lib/authRole'
 
 const DRAWER_WIDTH = 260
 
-const nav = [
+const HOME_NAV = [{ to: '/internal/home', label: 'Beranda' }]
+
+const ADMIN_NAV = [
   { to: '/internal/in-out', label: 'Masuk / Keluar' },
   { to: '/internal/renter-info', label: 'Info Penyewa' },
   { to: '/internal/cars', label: 'Kendaraan' },
@@ -31,10 +34,19 @@ const nav = [
   { to: '/internal/settings', label: 'Pengaturan' },
 ]
 
-function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function NavList({
+  pathname,
+  isAdmin,
+  onNavigate,
+}: {
+  pathname: string
+  isAdmin: boolean
+  onNavigate?: () => void
+}) {
+  const items = isAdmin ? [...HOME_NAV, ...ADMIN_NAV] : HOME_NAV
   return (
     <List disablePadding sx={{ pt: 1 }}>
-      {nav.map((item) => {
+      {items.map((item) => {
         const selected = pathname === item.to || pathname.startsWith(`${item.to}/`)
         return (
           <ListItemButton
@@ -55,7 +67,8 @@ function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () =
 
 export function InternalLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const { signOut } = useAuth()
+  const { user, signOut } = useAuth()
+  const isAdmin = user ? isAdminUser(user) : false
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
@@ -100,7 +113,7 @@ export function InternalLayout() {
               sx={{ textTransform: 'none' }}
               onClick={async () => {
                 await signOut()
-                navigate('/internal/login', { replace: true })
+                navigate('/login', { replace: true })
               }}
             >
               Keluar
@@ -122,7 +135,7 @@ export function InternalLayout() {
             },
           }}
         >
-          <NavList pathname={pathname} onNavigate={closeDrawer} />
+          <NavList pathname={pathname} isAdmin={isAdmin} onNavigate={closeDrawer} />
         </Drawer>
 
         <Box

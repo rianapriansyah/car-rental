@@ -66,12 +66,17 @@ export function PartnerAcceptInvitePage() {
     }
     setBusy(true)
     const { error: uErr } = await supabase.auth.updateUser({ password })
-    setBusy(false)
     if (uErr) {
+      setBusy(false)
       setError(uErr.message)
       return
     }
-    navigate('/partner', { replace: true })
+    const { error: claimErr } = await supabase.rpc('claim_partner_for_current_user')
+    setBusy(false)
+    if (claimErr) {
+      console.warn('claim_partner_for_current_user:', claimErr.message)
+    }
+    navigate('/internal/home', { replace: true })
   }
 
   if (!ready) {
@@ -92,8 +97,8 @@ export function PartnerAcceptInvitePage() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Buka email undangan terbaru dari admin, atau minta admin mengirim ulang undangan dari menu Mitra.
           </Typography>
-          <Button component={RouterLink} to="/partner/login" variant="contained">
-            Ke halaman masuk mitra
+          <Button component={RouterLink} to="/login" variant="contained">
+            Ke halaman masuk
           </Button>
         </Paper>
       </Container>
@@ -148,7 +153,7 @@ export function PartnerAcceptInvitePage() {
           </Button>
         </Box>
         <Typography variant="body2" sx={{ mt: 2 }}>
-          <Link component={RouterLink} to="/partner/login">
+          <Link component={RouterLink} to="/login">
             Sudah punya akun? Masuk
           </Link>
         </Typography>

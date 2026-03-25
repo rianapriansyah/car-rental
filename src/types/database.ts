@@ -267,6 +267,10 @@ export type Database = {
       }
     }
     Functions: {
+      claim_partner_for_current_user: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       complete_rental: {
         Args: { p_rental_id: string }
         Returns: undefined

@@ -3,17 +3,17 @@ import { useV2RealtimeRefresh } from '../../hooks/useV2RealtimeRefresh'
 import {
   AppBar,
   Box,
+  Button,
   Card,
   CardContent,
   CardMedia,
   Chip,
   CircularProgress,
   Container,
-  Link,
   Toolbar,
   Typography,
 } from '@mui/material'
-import { Link as RouterLink } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { CarRow } from '../../types/car'
 import type { RentalRow } from '../../types/rental'
@@ -23,6 +23,7 @@ type FleetCar = CarRow & {
 }
 
 export function PublicFleetPage() {
+  const navigate = useNavigate()
   const [cars, setCars] = useState<FleetCar[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -86,14 +87,9 @@ export function PublicFleetPage() {
           <Typography variant="h6" sx={{ flexGrow: 1, minWidth: '40%', fontSize: { xs: '1rem', sm: '1.25rem' } }}>
             Public fleet
           </Typography>
-          <Box sx={{ display: 'flex', gap: { xs: 1.5, sm: 2 }, flexWrap: 'wrap', alignItems: 'center' }}>
-            <Link component={RouterLink} to="/partner/login" color="inherit" underline="hover" variant="body2">
-              Partner
-            </Link>
-            <Link component={RouterLink} to="/internal/login" color="inherit" underline="hover" variant="body2">
-              Admin
-            </Link>
-          </Box>
+          <Button variant="outlined" size="small" onClick={() => navigate('/login')}>
+            Masuk
+          </Button>
         </Toolbar>
       </AppBar>
       <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3 }, px: { xs: 2, sm: 3 } }}>

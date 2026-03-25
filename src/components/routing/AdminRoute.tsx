@@ -16,7 +16,7 @@ export function AdminRoute() {
   }
 
   if (!user || !isAdminUser(user)) {
-    return <Navigate to="/internal/login" replace state={{ from: location.pathname }} />
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
   return <Outlet />

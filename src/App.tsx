@@ -1,11 +1,11 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { ColorModeProvider } from './contexts/ColorModeContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { AdminRoute } from './components/routing/AdminRoute'
-import { PartnerRoute } from './components/routing/PartnerRoute'
+import { AuthenticatedRoute } from './components/routing/AuthenticatedRoute'
+import { LoginPage } from './portals/LoginPage'
 import { InternalLayout } from './portals/internal/InternalLayout'
-import { InternalLoginPage } from './portals/internal/InternalLoginPage'
 import { BootstrapAdminPage } from './portals/internal/BootstrapAdminPage'
+import { HomePage } from './portals/internal/home/HomePage'
 import { CarsPage } from './portals/internal/cars/CarsPage'
 import { PartnersPage } from './portals/internal/partners/PartnersPage'
 import { InOutPage } from './portals/internal/inout/InOutPage'
@@ -13,9 +13,6 @@ import { RentalsPage } from './portals/internal/rentals/RentalsPage'
 import { TransactionsPage } from './portals/internal/transactions/TransactionsPage'
 import { RenterInfoPage } from './portals/internal/renterinfo/RenterInfoPage'
 import { SettingsPage } from './portals/internal/settings/SettingsPage'
-import { PartnerLayout } from './portals/partner/PartnerLayout'
-import { PartnerDashboardPage } from './portals/partner/PartnerDashboardPage'
-import { PartnerLoginPage } from './portals/partner/PartnerLoginPage'
 import { PartnerAcceptInvitePage } from './portals/partner/PartnerAcceptInvitePage'
 import { PublicFleetPage } from './portals/public/PublicFleetPage'
 
@@ -27,19 +24,19 @@ export default function App() {
           <Route path="/" element={<Navigate to="/public" replace />} />
           <Route path="/public" element={<PublicFleetPage />} />
 
-          <Route path="/partner/login" element={<PartnerLoginPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          {/* Legacy login paths — redirect to unified /login */}
+          <Route path="/internal/login" element={<Navigate to="/login" replace />} />
+          <Route path="/partner/login" element={<Navigate to="/login" replace />} />
+          {/* Legacy partner portal — redirect to unified internal */}
+          <Route path="/partner" element={<Navigate to="/internal/home" replace />} />
           <Route path="/partner/accept-invite" element={<PartnerAcceptInvitePage />} />
-          <Route path="/partner" element={<PartnerRoute />}>
-            <Route element={<PartnerLayout />}>
-              <Route index element={<PartnerDashboardPage />} />
-            </Route>
-          </Route>
 
-          <Route path="/internal/login" element={<InternalLoginPage />} />
           <Route path="/internal/bootstrap-admin" element={<BootstrapAdminPage />} />
-          <Route path="/internal" element={<AdminRoute />}>
+          <Route path="/internal" element={<AuthenticatedRoute />}>
             <Route element={<InternalLayout />}>
-              <Route index element={<Navigate to="in-out" replace />} />
+              <Route index element={<Navigate to="home" replace />} />
+              <Route path="home" element={<HomePage />} />
               <Route path="in-out" element={<InOutPage />} />
               <Route path="renter-info" element={<RenterInfoPage />} />
               <Route path="cars" element={<CarsPage />} />

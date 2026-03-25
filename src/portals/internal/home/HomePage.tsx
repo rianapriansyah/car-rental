@@ -26,13 +26,14 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { ResponsiveTableContainer } from '../../components/ResponsiveTableContainer'
-import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../hooks/useAuth'
-import { usePartnerProfile } from '../../hooks/usePartnerProfile'
-import type { CarRow } from '../../types/car'
-import type { TransactionRow } from '../../types/transaction'
-import { formatIdr } from '../../lib/formatIdr'
+import { ResponsiveTableContainer } from '../../../components/ResponsiveTableContainer'
+import { supabase } from '../../../lib/supabase'
+import { useAuth } from '../../../hooks/useAuth'
+import { isAdminUser } from '../../../lib/authRole'
+import { usePartnerProfile } from '../../../hooks/usePartnerProfile'
+import type { CarRow } from '../../../types/car'
+import type { TransactionRow } from '../../../types/transaction'
+import { formatIdr } from '../../../lib/formatIdr'
 
 type LedgerSummaryRow = {
   car_id: string | null
@@ -42,11 +43,12 @@ type LedgerSummaryRow = {
   balance: number | null
 }
 
-export function PartnerDashboardPage() {
+export function HomePage() {
   const theme = useTheme()
   const isSmDown = useMediaQuery(theme.breakpoints.down('sm'))
   const { user } = useAuth()
-  const { partner, loading: partnerLoading } = usePartnerProfile(user?.id)
+  const isAdmin = user ? isAdminUser(user) : false
+  const { partner, loading: partnerLoading } = usePartnerProfile(isAdmin ? undefined : user?.id)
   const [cars, setCars] = useState<CarRow[]>([])
   const [txByCar, setTxByCar] = useState<Record<string, TransactionRow[]>>({})
   const [summaryRows, setSummaryRows] = useState<LedgerSummaryRow[]>([])
@@ -54,7 +56,6 @@ export function PartnerDashboardPage() {
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    if (!partner) return
     setLoading(true)
     setError(null)
 
@@ -114,13 +115,15 @@ export function PartnerDashboardPage() {
 
     setSummaryRows((sumData ?? []) as LedgerSummaryRow[])
     setLoading(false)
-  }, [partner])
+  }, [])
 
   useEffect(() => {
-    if (!partnerLoading && partner) {
+    if (isAdmin) {
+      void load()
+    } else if (!partnerLoading && partner) {
       void load()
     }
-  }, [partner, partnerLoading, load])
+  }, [isAdmin, partner, partnerLoading, load])
 
   const chartData = useMemo(() => {
     const byMonth = new Map<string, { month: string; income: number; expense: number }>()
@@ -140,7 +143,7 @@ export function PartnerDashboardPage() {
       }))
   }, [summaryRows])
 
-  if (partnerLoading || !partner) {
+  if (!isAdmin && (partnerLoading || !partner)) {
     return (
       <Box display="flex" justifyContent="center" py={4}>
         <CircularProgress />
@@ -148,10 +151,16 @@ export function PartnerDashboardPage() {
     )
   }
 
+  const title = isAdmin
+    ? 'Semua Kendaraan'
+    : partner
+      ? `Kendaraan: ${partner.name}`
+      : 'Kendaraan Anda'
+
   return (
     <Box>
       <Typography variant="h5" gutterBottom sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
-        Your cars
+        {title}
       </Typography>
       {error ? <Alert severity="error">{error}</Alert> : null}
       {loading ? (
@@ -159,20 +168,28 @@ export function PartnerDashboardPage() {
           <CircularProgress />
         </Box>
       ) : cars.length === 0 ? (
-        <Typography color="text.secondary">No cars assigned to your account.</Typography>
+        <Typography color="text.secondary">Belum ada kendaraan.</Typography>
       ) : (
         <>
           <Card sx={{ mb: 3, overflow: 'hidden' }}>
             <CardContent sx={{ px: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 2, sm: 2 } } }}>
               <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                Monthly income vs expense
+                Pendapatan vs pengeluaran per bulan
               </Typography>
               {chartData.length === 0 ? (
-                <Typography color="text.secondary">No ledger data yet.</Typography>
+                <Typography color="text.secondary">Belum ada data buku besar.</Typography>
               ) : (
                 <Box sx={{ width: '100%', height: { xs: 260, sm: 300, md: 340 }, minHeight: 200 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 8, right: isSmDown ? 4 : 8, left: isSmDown ? -12 : 0, bottom: isSmDown ? 36 : 8 }}>
+                    <BarChart
+                      data={chartData}
+                      margin={{
+                        top: 8,
+                        right: isSmDown ? 4 : 8,
+                        left: isSmDown ? -12 : 0,
+                        bottom: isSmDown ? 36 : 8,
+                      }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis
                         dataKey="label"
@@ -193,8 +210,8 @@ export function PartnerDashboardPage() {
                         }
                       />
                       <Legend wrapperStyle={{ fontSize: isSmDown ? 12 : 14 }} />
-                      <Bar dataKey="income" name="Income" fill="#2e7d32" />
-                      <Bar dataKey="expense" name="Expense" fill="#c62828" />
+                      <Bar dataKey="income" name="Pendapatan" fill="#2e7d32" />
+                      <Bar dataKey="expense" name="Pengeluaran" fill="#c62828" />
                     </BarChart>
                   </ResponsiveContainer>
                 </Box>
@@ -215,30 +232,37 @@ export function PartnerDashboardPage() {
                   <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                     {car.name}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" gutterBottom sx={{ wordBreak: 'break-word' }}>
-                    {car.plate} · Balance: {formatIdr(bal)}
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    gutterBottom
+                    sx={{ wordBreak: 'break-word' }}
+                  >
+                    {car.plate} · Saldo: {formatIdr(bal)}
                   </Typography>
                   <Divider sx={{ my: 2 }} />
                   {txs.length === 0 ? (
-                    <Typography color="text.secondary">No transactions yet.</Typography>
+                    <Typography color="text.secondary">Belum ada transaksi.</Typography>
                   ) : (
                     <ResponsiveTableContainer>
                       <Table size="small" sx={{ minWidth: 640 }}>
                         <TableHead>
                           <TableRow>
-                            <TableCell>When</TableCell>
-                            <TableCell>Type</TableCell>
-                            <TableCell>Category</TableCell>
-                            <TableCell align="right">Amount</TableCell>
-                            <TableCell align="right">Running</TableCell>
-                            <TableCell>Fee</TableCell>
+                            <TableCell>Waktu</TableCell>
+                            <TableCell>Jenis</TableCell>
+                            <TableCell>Kategori</TableCell>
+                            <TableCell align="right">Jumlah</TableCell>
+                            <TableCell align="right">Berjalan</TableCell>
+                            <TableCell>Biaya</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
                           {txs.map((t, i) => (
                             <TableRow key={t.id}>
                               <TableCell sx={{ whiteSpace: 'nowrap', fontSize: '0.8125rem' }}>
-                                {t.recorded_at ? new Date(t.recorded_at).toLocaleString('id-ID') : '—'}
+                                {t.recorded_at
+                                  ? new Date(t.recorded_at).toLocaleString('id-ID')
+                                  : '—'}
                               </TableCell>
                               <TableCell>{t.type}</TableCell>
                               <TableCell>
@@ -250,7 +274,9 @@ export function PartnerDashboardPage() {
                               <TableCell align="right">{formatIdr(Number(t.amount))}</TableCell>
                               <TableCell align="right">{formatIdr(running[i] ?? 0)}</TableCell>
                               <TableCell>
-                                {t.auto_fee ? <Chip size="small" label="Auto" color="secondary" /> : null}
+                                {t.auto_fee ? (
+                                  <Chip size="small" label="Auto" color="secondary" />
+                                ) : null}
                               </TableCell>
                             </TableRow>
                           ))}
