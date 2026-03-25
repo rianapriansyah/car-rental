@@ -21,6 +21,7 @@ export function PartnerAcceptInvitePage() {
   const navigate = useNavigate()
   const [ready, setReady] = useState(false)
   const [hasSession, setHasSession] = useState(false)
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null)
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -32,12 +33,16 @@ export function PartnerAcceptInvitePage() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!cancelled) setHasSession(!!session)
+      if (!cancelled) {
+        setHasSession(!!session)
+        setRegisteredEmail(session?.user?.email ?? null)
+      }
     })
 
     void supabase.auth.getSession().then(({ data }) => {
       if (!cancelled) {
         setHasSession(!!data.session)
+        setRegisteredEmail(data.session?.user?.email ?? null)
         setReady(true)
       }
     })
@@ -110,6 +115,16 @@ export function PartnerAcceptInvitePage() {
           </Alert>
         ) : null}
         <Box component="form" onSubmit={(e) => void onSubmit(e)} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <TextField
+            label="Email terdaftar"
+            type="email"
+            value={registeredEmail ?? ''}
+            fullWidth
+            slotProps={{
+              input: { readOnly: true },
+            }}
+            helperText="Email ini sudah terhubung dengan undangan dan tidak dapat diubah di sini."
+          />
           <TextField
             label="Kata sandi baru"
             type="password"
