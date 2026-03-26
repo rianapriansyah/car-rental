@@ -25,7 +25,6 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Missing or invalid Authorization' }, 401)
     }
 
-    // Decode JWT inline — no extra HTTP round-trip
     const token = authHeader.slice('Bearer '.length).trim()
     let jwtPayload: Record<string, unknown>
     try {
@@ -52,33 +51,67 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Server misconfigured' }, 500)
     }
 
-    const body = (await req.json()) as { authUserId?: string | null }
-    const { authUserId } = body
-
-    if (!authUserId) {
-      return jsonResponse({ error: 'authUserId is required' }, 400)
+    const body = (await req.json()) as { partnerId?: string }
+    const partnerId = typeof body.partnerId === 'string' ? body.partnerId.trim() : ''
+    if (!partnerId) {
+      return jsonResponse({ error: 'partnerId is required' }, 400)
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    // Clear the FK reference first — otherwise auth.users delete is blocked
-    // by the v2_partners_auth_user_id_fkey constraint.
-    const { error: clearFkError } = await adminClient
+    const { data: partnerRow, error: partnerFetchError } = await adminClient
       .from('v2_partners')
-      .update({ auth_user_id: null })
-      .eq('auth_user_id', authUserId)
+      .select('id, auth_user_id')
+      .eq('id', partnerId)
+      .maybeSingle()
 
-    if (clearFkError) {
-      console.error('clearFk failed:', clearFkError.message)
-      return jsonResponse({ error: `Failed to clear partner FK: ${clearFkError.message}` }, 500)
+    if (partnerFetchError) {
+      console.error('partner fetch:', partnerFetchError.message)
+      return jsonResponse({ error: `Failed to load partner: ${partnerFetchError.message}` }, 500)
+    }
+    if (!partnerRow) {
+      return jsonResponse({ error: 'Partner not found' }, 404)
     }
 
-    const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(authUserId)
-    if (authDeleteError) {
-      console.error('deleteUser failed:', authDeleteError.message)
-      return jsonResponse({ error: `Auth delete failed: ${authDeleteError.message}` }, 500)
+    const authUserId =
+      partnerRow.auth_user_id && typeof partnerRow.auth_user_id === 'string'
+        ? partnerRow.auth_user_id
+        : null
+
+    const { error: carsError } = await adminClient
+      .from('v2_cars')
+      .update({ partner_id: null, ownership_type: 'rental' })
+      .eq('partner_id', partnerId)
+
+    if (carsError) {
+      console.error('unlink cars:', carsError.message)
+      return jsonResponse({ error: `Failed to unlink cars: ${carsError.message}` }, 500)
+    }
+
+    const { error: clearAuthFkError } = await adminClient
+      .from('v2_partners')
+      .update({ auth_user_id: null })
+      .eq('id', partnerId)
+
+    if (clearAuthFkError) {
+      console.error('clear auth_user_id:', clearAuthFkError.message)
+      return jsonResponse({ error: `Failed to clear partner auth link: ${clearAuthFkError.message}` }, 500)
+    }
+
+    if (authUserId) {
+      const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(authUserId)
+      if (authDeleteError) {
+        console.error('deleteUser:', authDeleteError.message)
+        return jsonResponse({ error: `Auth delete failed: ${authDeleteError.message}` }, 500)
+      }
+    }
+
+    const { error: deletePartnerError } = await adminClient.from('v2_partners').delete().eq('id', partnerId)
+    if (deletePartnerError) {
+      console.error('delete partner:', deletePartnerError.message)
+      return jsonResponse({ error: `Failed to delete partner: ${deletePartnerError.message}` }, 500)
     }
 
     return jsonResponse({ ok: true })

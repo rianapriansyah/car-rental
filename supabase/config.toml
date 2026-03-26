@@ -1,5 +1,9 @@
 # Supabase local / CLI config. Link your project with: supabase link
-# Deploy invite function: supabase functions deploy invite-partner
+# Deploy: npm run deploy:function:invite-partner
+# Deploy: npm run deploy:function:delete-partner
 
 [functions.invite-partner]
+verify_jwt = true
+
+[functions.delete-partner]
 verify_jwt = true

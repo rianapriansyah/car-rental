@@ -83,7 +83,7 @@ export function PartnersPage() {
     if (!deleteTarget) return
     setDeleting(true)
     setError(null)
-    const result = await deletePartner(deleteTarget.id, deleteTarget.auth_user_id)
+    const result = await deletePartner(deleteTarget.id)
     setDeleting(false)
     if (!result.ok) {
       setError(result.message)

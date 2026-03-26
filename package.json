@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "deploy:function:invite-partner": "supabase functions deploy invite-partner"
+    "deploy:function:invite-partner": "supabase functions deploy invite-partner",
+    "deploy:function:delete-partner": "supabase functions deploy delete-partner"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
