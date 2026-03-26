@@ -12,7 +12,7 @@ import {
 import { Link as RouterLink, Navigate, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { isAdminBootstrapEnabled } from '../../lib/bootstrapAdmin'
-import { useAuth } from '../../hooks/useAuth'
+import { useAuth } from '../../contexts/AuthContext'
 import { isAdminUser } from '../../lib/authRole'
 
 export function BootstrapAdminPage() {

@@ -1,6 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Alert, Box, CircularProgress, Container, Paper, Typography } from '@mui/material'
-import { useAuth } from '../../hooks/useAuth'
+import { useAuth } from '../../contexts/AuthContext'
 import { isAdminUser } from '../../lib/authRole'
 import { usePartnerProfile } from '../../hooks/usePartnerProfile'
 

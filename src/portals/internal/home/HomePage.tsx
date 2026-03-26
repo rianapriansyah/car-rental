@@ -28,7 +28,7 @@ import {
 } from 'recharts'
 import { ResponsiveTableContainer } from '../../../components/ResponsiveTableContainer'
 import { supabase } from '../../../lib/supabase'
-import { useAuth } from '../../../hooks/useAuth'
+import { useAuth } from '../../../contexts/AuthContext'
 import { isAdminUser } from '../../../lib/authRole'
 import { usePartnerProfile } from '../../../hooks/usePartnerProfile'
 import type { CarRow } from '../../../types/car'

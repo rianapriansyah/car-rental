@@ -17,7 +17,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { InternalAppearanceBar } from '../../components/InternalAppearanceBar'
-import { useAuth } from '../../hooks/useAuth'
+import { useAuth } from '../../contexts/AuthContext'
 import { isAdminUser } from '../../lib/authRole'
 
 const DRAWER_WIDTH = 260

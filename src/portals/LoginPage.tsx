@@ -12,7 +12,7 @@ import {
 } from '@mui/material'
 import { Link as RouterLink, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth } from '../contexts/AuthContext'
 import { isAdminUser } from '../lib/authRole'
 import { isAdminBootstrapEnabled } from '../lib/bootstrapAdmin'
 
@@ -37,6 +37,7 @@ export function LoginPage() {
   useEffect(() => {
     if (!destination || !user) return
     navigate(destination, { replace: true })
+    setDestination(null)
   }, [destination, user, navigate])
 
   // ── 1. Session resolving ────────────────────────────────────────────────────
@@ -88,9 +89,7 @@ export function LoginPage() {
       return
     }
 
-    // Partner — validate before allowing navigation.
-    await supabase.rpc('claim_partner_for_current_user')
-
+    // Partner — auth_user_id is set server-side on invite; validate profile + verification.
     const { data: row } = await supabase
       .from('v2_partners')
       .select('id, verified')

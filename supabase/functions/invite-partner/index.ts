@@ -15,6 +15,21 @@ function jsonResponse(body: unknown, status = 200): Response {
   })
 }
 
+/** Links v2_partners row (by email) to the Supabase Auth user so partners can log in without a client-side claim RPC. */
+async function linkPartnerAuthUser(
+  adminClient: ReturnType<typeof createClient>,
+  email: string,
+  authUserId: string,
+): Promise<void> {
+  const { error } = await adminClient
+    .from('v2_partners')
+    .update({ auth_user_id: authUserId })
+    .eq('email', email)
+  if (error) {
+    console.error('linkPartnerAuthUser:', error.message)
+  }
+}
+
 async function findUserIdByEmail(
   adminClient: ReturnType<typeof createClient>,
   email: string,
@@ -111,6 +126,7 @@ Deno.serve(async (req) => {
     )
 
     if (!error && data?.user?.id) {
+      await linkPartnerAuthUser(adminClient, email, data.user.id)
       return jsonResponse({ userId: data.user.id })
     }
 
@@ -124,6 +140,7 @@ Deno.serve(async (req) => {
     if (already) {
       const existingId = await findUserIdByEmail(adminClient, email)
       if (existingId) {
+        await linkPartnerAuthUser(adminClient, email, existingId)
         return jsonResponse({ userId: existingId, reused: true })
       }
     }
