@@ -152,6 +152,7 @@ export type Database = {
           start_date: string
           start_time: string | null
           end_date: string | null
+          end_time: string | null
           duration_days: number | null
           down_payment: number | null
           gross_income: number | null
@@ -168,6 +169,7 @@ export type Database = {
           start_date: string
           start_time?: string | null
           end_date?: string | null
+          end_time?: string | null
           duration_days?: number | null
           down_payment?: number | null
           gross_income?: number | null
@@ -184,6 +186,7 @@ export type Database = {
           start_date?: string
           start_time?: string | null
           end_date?: string | null
+          end_time?: string | null
           duration_days?: number | null
           down_payment?: number | null
           gross_income?: number | null

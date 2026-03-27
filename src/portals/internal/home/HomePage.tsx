@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
@@ -14,6 +15,7 @@ import {
   TableRow,
   Typography,
 } from '@mui/material'
+import DownloadIcon from '@mui/icons-material/Download'
 import { useTheme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import {
@@ -31,9 +33,16 @@ import { supabase } from '../../../lib/supabase'
 import { useAuth } from '../../../contexts/AuthContext'
 import { isAdminUser } from '../../../lib/authRole'
 import { usePartnerProfile } from '../../../hooks/usePartnerProfile'
-import type { CarRow } from '../../../types/car'
+import type { CarWithPartner } from '../../../types/car'
 import type { TransactionRow } from '../../../types/transaction'
 import { formatIdr } from '../../../lib/formatIdr'
+import {
+  currentMonthYyyyMm,
+  downloadLedgerReport,
+  fetchCompanyDisplayName,
+  fetchLedgerRentalMap,
+  filterTransactionsByMonth,
+} from '../../../lib/ledgerPdf'
 
 type LedgerSummaryRow = {
   car_id: string | null
@@ -49,11 +58,12 @@ export function HomePage() {
   const { user } = useAuth()
   const isAdmin = user ? isAdminUser(user) : false
   const { partner, loading: partnerLoading } = usePartnerProfile(isAdmin ? undefined : user?.id)
-  const [cars, setCars] = useState<CarRow[]>([])
+  const [cars, setCars] = useState<CarWithPartner[]>([])
   const [txByCar, setTxByCar] = useState<Record<string, TransactionRow[]>>({})
   const [summaryRows, setSummaryRows] = useState<LedgerSummaryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [pdfBusyCarId, setPdfBusyCarId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -61,7 +71,7 @@ export function HomePage() {
 
     const { data: carData, error: carError } = await supabase
       .from('v2_cars')
-      .select('*')
+      .select('*, v2_partners(name)')
       .is('deleted_at', null)
       .order('name')
 
@@ -71,7 +81,7 @@ export function HomePage() {
       return
     }
 
-    const list = carData ?? []
+    const list = (carData ?? []) as CarWithPartner[]
     setCars(list)
 
     const carIds = list.map((c) => c.id)
@@ -124,6 +134,34 @@ export function HomePage() {
       void load()
     }
   }, [isAdmin, partner, partnerLoading, load])
+
+  async function handleDownloadMonthLedger(car: CarWithPartner) {
+    const month = currentMonthYyyyMm()
+    const txs = filterTransactionsByMonth(txByCar[car.id] ?? [], month)
+    setPdfBusyCarId(car.id)
+    try {
+      const rentalIds = txs.map((t) => t.rental_id).filter(Boolean) as string[]
+      const [rentalById, companyName] = await Promise.all([
+        fetchLedgerRentalMap(supabase, rentalIds),
+        fetchCompanyDisplayName(supabase),
+      ])
+      downloadLedgerReport({
+        companyName,
+        month,
+        car: {
+          name: car.name,
+          plate: car.plate,
+          ownership_type: car.ownership_type,
+          partnerName: car.v2_partners?.name ?? null,
+          hasGps: Boolean(car.has_gps),
+        },
+        transactions: txs,
+        rentalById,
+      })
+    } finally {
+      setPdfBusyCarId(null)
+    }
+  }
 
   const chartData = useMemo(() => {
     const byMonth = new Map<string, { month: string; income: number; expense: number }>()
@@ -284,6 +322,17 @@ export function HomePage() {
                       </Table>
                     </ResponsiveTableContainer>
                   )}
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<DownloadIcon />}
+                      disabled={pdfBusyCarId === car.id}
+                      onClick={() => void handleDownloadMonthLedger(car)}
+                    >
+                      Unduh Rekap Bulan Berjalan
+                    </Button>
+                  </Box>
                 </CardContent>
               </Card>
             )

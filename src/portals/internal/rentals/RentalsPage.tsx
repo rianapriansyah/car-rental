@@ -39,6 +39,11 @@ function rentalSearchBlob(row: RentalWithCar): string {
   return `${row.renter_name} ${car}`.toLowerCase()
 }
 
+function completionLabel(row: RentalWithCar): string {
+  if (!row.end_date) return '—'
+  return row.end_time ? `${row.end_date} ${row.end_time}` : row.end_date
+}
+
 export function RentalsPage() {
   const [rows, setRows] = useState<RentalWithCar[]>([])
   const [cars, setCars] = useState<CarFilter[]>([])
@@ -128,6 +133,12 @@ export function RentalsPage() {
       },
       { field: 'renter_name', headerName: 'Penyewa', width: 160 },
       { field: 'start_date', headerName: 'Mulai', width: 120 },
+      {
+        field: 'completed_at',
+        headerName: 'Selesai',
+        width: 145,
+        valueGetter: (_v, row) => completionLabel(row),
+      },
       {
         field: 'duration',
         headerName: 'Durasi',

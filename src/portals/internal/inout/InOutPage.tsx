@@ -27,10 +27,11 @@ import type { RentalWithCar } from '../../../types/rental'
 
 // ─── RENTAL COST HELPERS ─────────────────────────────────────────────────────
 
-function calcElapsedHours(startDate: string, startTime: string | null): number {
+function calcElapsedHours(startDate: string, startTime: string | null, until?: Dayjs): number {
   const timeStr = startTime ?? '00:00'
   const start = dayjs(`${startDate}T${timeStr}`)
-  return dayjs().diff(start, 'minute') / 60
+  const end = until ?? dayjs()
+  return end.diff(start, 'minute') / 60
 }
 
 function formatElapsed(hours: number): string {
@@ -321,6 +322,9 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const [overtimeRate, setOvertimeRate] = useState(25000)
   const [selectedId, setSelectedId] = useState('')
   const [gross, setGross] = useState('')
+  const [useCurrentTime, setUseCurrentTime] = useState(true)
+  const [endDate, setEndDate] = useState<Dayjs | null>(dayjs())
+  const [endTime, setEndTime] = useState<Dayjs | null>(dayjs())
   const [checkOutNote, setCheckOutNote] = useState('')
   const [blacklist, setBlacklist] = useState(false)
   const [blacklistNote, setBlacklistNote] = useState('')
@@ -363,15 +367,21 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const selected = activeRentals.find((r) => r.id === selectedId) ?? null
   const downPayment = Number(selected?.down_payment ?? 0)
   const checkInNote = selected?.manual_note ?? ''
+  const completionMoment = useMemo<Dayjs | null>(() => {
+    if (useCurrentTime) return now
+    if (!endDate || !endTime) return null
+    return dayjs(`${endDate.format('YYYY-MM-DD')}T${endTime.format('HH:mm')}`)
+  }, [useCurrentTime, now, endDate, endTime])
 
   const costBreakdown = useMemo<CostBreakdown | null>(() => {
     if (!selected?.start_date) return null
     const dailyRate = selected.v2_cars?.daily_rate
     if (!dailyRate) return null
-    const elapsed = calcElapsedHours(selected.start_date, selected.start_time ?? null)
+    if (!completionMoment) return null
+    const elapsed = calcElapsedHours(selected.start_date, selected.start_time ?? null, completionMoment)
+    if (elapsed < 0) return null
     return calcCost(elapsed, dailyRate, overtimeRate)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, overtimeRate, now])
+  }, [selected, overtimeRate, completionMoment])
 
   async function handleComplete() {
     if (!selectedId) return
@@ -389,8 +399,32 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     setError(null)
     setSuccess(null)
 
+    const completionAt =
+      useCurrentTime
+        ? {
+            endDate: dayjs().format('YYYY-MM-DD'),
+            endTime: dayjs().format('HH:mm'),
+          }
+        : endDate && endTime
+          ? {
+              endDate: endDate.format('YYYY-MM-DD'),
+              endTime: endTime.format('HH:mm'),
+            }
+          : null
+
+    if (!completionAt) {
+      setBusy(false)
+      setError('Tanggal dan jam selesai wajib diisi jika Waktu Saat Ini dimatikan.')
+      return
+    }
+
     const combinedNote = buildCombinedNote(checkInNote, checkOutNote)
-    const { error: doneError } = await completeRentalWithIncome(selectedId, totalGrossIncome, combinedNote)
+    const { error: doneError } = await completeRentalWithIncome(
+      selectedId,
+      totalGrossIncome,
+      combinedNote,
+      completionAt,
+    )
     if (doneError) {
       setBusy(false)
       setError(doneError.message)
@@ -445,6 +479,9 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     setSuccess(`${label} selesai. Total: ${formatIdr(totalGrossIncome)}.`)
     setSelectedId('')
     setGross('')
+    setUseCurrentTime(true)
+    setEndDate(dayjs())
+    setEndTime(dayjs())
     setCheckOutNote('')
     setBlacklist(false)
     setBlacklistNote('')
@@ -466,6 +503,9 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
           onChange={(e) => {
             setSelectedId(e.target.value)
             setGross('')
+            setUseCurrentTime(true)
+            setEndDate(dayjs())
+            setEndTime(dayjs())
             setCheckOutNote('')
             setBlacklist(false)
             setBlacklistNote('')
@@ -522,7 +562,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
           <Typography variant="body2" sx={{ mb: 0.5 }}>
             Berlangsung:{' '}
             <strong>
-              {formatElapsed(calcElapsedHours(selected.start_date, selected.start_time ?? null))}
+              {costBreakdown ? formatElapsed(costBreakdown.elapsedHours) : '—'}
             </strong>
             {selected.start_time ? (
               <Typography component="span" variant="caption" color="text.secondary"> (sejak {selected.start_date} {selected.start_time})</Typography>
@@ -577,6 +617,36 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
           <strong>{formatIdr(downPayment + Number(gross.replace(/\D/g, '') || 0))}</strong>
         </Typography>
       ) : null}
+
+      <FormControlLabel
+        control={
+          <Switch
+            checked={useCurrentTime}
+            onChange={(_, v) => setUseCurrentTime(v)}
+            size="small"
+            disabled={!selectedId}
+          />
+        }
+        label="Waktu Saat Ini"
+      />
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+        <DatePicker
+          label="Tanggal selesai"
+          value={endDate}
+          onChange={(v) => setEndDate(v)}
+          disabled={!selectedId || useCurrentTime}
+          slotProps={{ textField: { fullWidth: true, size: 'small' } }}
+        />
+        <TimePicker
+          label="Jam selesai (24 jam)"
+          value={endTime}
+          onChange={(v) => setEndTime(v)}
+          ampm={false}
+          disabled={!selectedId || useCurrentTime}
+          slotProps={{ textField: { fullWidth: true, size: 'small' } }}
+        />
+      </Box>
 
       <TextField
         size="small"

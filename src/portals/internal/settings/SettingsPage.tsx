@@ -1,5 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Box, Button, CircularProgress, MenuItem, Paper, TextField, Tooltip, Typography } from '@mui/material'
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  MenuItem,
+  Paper,
+  TextField,
+  Tooltip,
+  Typography,
+} from '@mui/material'
 import { formatIdr } from '../../../lib/formatIdr'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import {
@@ -33,6 +47,11 @@ function matchesKeyword(row: SettingRow, q: string): boolean {
   return blob.includes(s)
 }
 
+/** Keys whose value is stored and edited as a number (see `formatSettingValue`). */
+function isNumericSettingKey(key: string): boolean {
+  return key.endsWith('_pct') || key.endsWith('_fee') || key.endsWith('_rate')
+}
+
 export function SettingsPage() {
   const [rows, setRows] = useState<SettingRow[]>([])
   const [drafts, setDrafts] = useState<Record<string, string>>({})
@@ -44,6 +63,12 @@ export function SettingsPage() {
   const [keyword, setKeyword] = useState('')
   const [expanded, setExpanded] = useState(false)
   const [keyFilter, setKeyFilter] = useState('')
+
+  const [addOpen, setAddOpen] = useState(false)
+  const [newKey, setNewKey] = useState('')
+  const [newValue, setNewValue] = useState('')
+  const [newDescription, setNewDescription] = useState('')
+  const [addBusy, setAddBusy] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -78,6 +103,47 @@ export function SettingsPage() {
       setError(uError.message)
       return
     }
+    void load()
+  }
+
+  function closeAddDialog() {
+    if (addBusy) return
+    setAddOpen(false)
+    setNewKey('')
+    setNewValue('')
+    setNewDescription('')
+  }
+
+  async function submitNewSetting() {
+    const keyRaw = newKey.trim().toLowerCase().replace(/\s+/g, '_')
+    if (!keyRaw || !/^[\d_a-z]+$/.test(keyRaw)) {
+      setError('Kunci wajib diisi (huruf kecil, angka, dan garis bawah saja).')
+      return
+    }
+    const valRaw = newValue.trim()
+    if (!valRaw) {
+      setError('Nilai wajib diisi.')
+      return
+    }
+    setAddBusy(true)
+    setError(null)
+    const payload = {
+      key: keyRaw,
+      value: isNumericSettingKey(keyRaw) ? valRaw.replace(/\D/g, '') : valRaw,
+      description: newDescription.trim() || null,
+    }
+    if (isNumericSettingKey(keyRaw) && !payload.value) {
+      setAddBusy(false)
+      setError('Nilai angka tidak valid.')
+      return
+    }
+    const { error: iError } = await supabase.from('v2_app_settings').insert(payload)
+    setAddBusy(false)
+    if (iError) {
+      setError(iError.message)
+      return
+    }
+    closeAddDialog()
     void load()
   }
 
@@ -138,8 +204,15 @@ export function SettingsPage() {
             size="small"
             fullWidth
             value={drafts[params.row.key] ?? ''}
-            onChange={(e) => setDrafts((d) => ({ ...d, [params.row.key]: e.target.value.replace(/\D/g, '') }))}
-            inputMode="numeric"
+            onChange={(e) =>
+              setDrafts((d) => ({
+                ...d,
+                [params.row.key]: isNumericSettingKey(params.row.key)
+                  ? e.target.value.replace(/\D/g, '')
+                  : e.target.value,
+              }))
+            }
+            inputMode={isNumericSettingKey(params.row.key) ? 'numeric' : 'text'}
             placeholder={params.row.value}
             sx={{ mt: 0.5 }}
           />
@@ -180,6 +253,7 @@ export function SettingsPage() {
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         Nilai fee dibaca oleh database saat menyelesaikan sewa. Jangan diubah langsung di kode aplikasi.
+        Nama perusahaan di PDF diambil dari kunci <strong>company_name</strong>.
       </Typography>
 
       <InternalDataGridSearchPanel
@@ -215,6 +289,20 @@ export function SettingsPage() {
       />
 
       {error ? <Alert severity="error">{error}</Alert> : null}
+      {!loading ? (
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            mb: 1,
+            mt: error ? 2 : 0,
+          }}
+        >
+          <Button variant="outlined" size="small" onClick={() => setAddOpen(true)}>
+            Tambah
+          </Button>
+        </Box>
+      ) : null}
       {loading ? (
         <Box display="flex" justifyContent="center" py={4}>
           <CircularProgress />
@@ -227,7 +315,6 @@ export function SettingsPage() {
             width: '100%',
             minWidth: 0,
             overflow: 'hidden',
-            mt: error ? 2 : 0,
           }}
           variant="outlined"
         >
@@ -243,6 +330,49 @@ export function SettingsPage() {
           />
         </Paper>
       )}
+
+      <Dialog open={addOpen} onClose={closeAddDialog} fullWidth maxWidth="sm">
+        <DialogTitle>Tambah pengaturan</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              label="Kunci"
+              size="small"
+              required
+              fullWidth
+              value={newKey}
+              onChange={(e) => setNewKey(e.target.value)}
+              placeholder="company_name"
+              helperText="Huruf kecil, angka, dan garis bawah (contoh: company_name)."
+            />
+            <TextField
+              label="Nilai"
+              size="small"
+              required
+              fullWidth
+              value={newValue}
+              onChange={(e) => setNewValue(e.target.value)}
+              placeholder="Nilai yang disimpan"
+            />
+            <TextField
+              label="Deskripsi (opsional)"
+              size="small"
+              fullWidth
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              placeholder="Penjelasan singkat untuk operator"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={closeAddDialog} disabled={addBusy}>
+            Batal
+          </Button>
+          <Button variant="contained" disabled={addBusy} onClick={() => void submitNewSetting()}>
+            {addBusy ? 'Menyimpan…' : 'Simpan'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

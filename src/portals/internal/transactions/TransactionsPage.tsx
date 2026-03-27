@@ -13,6 +13,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import DownloadIcon from '@mui/icons-material/Download'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import {
   InternalDataGridSearchPanel,
@@ -22,6 +23,11 @@ import { supabase } from '../../../lib/supabase'
 import type { TransactionRow, TransactionCategory, TransactionType } from '../../../types/transaction'
 import { formatIdr } from '../../../lib/formatIdr'
 import { ManualTransactionDialog } from './ManualTransactionDialog'
+import {
+  downloadLedgerReport,
+  fetchCompanyDisplayName,
+  fetchLedgerRentalMap,
+} from '../../../lib/ledgerPdf'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
@@ -34,7 +40,14 @@ const CATEGORY_OPTIONS: TransactionCategory[] = [
   'other',
 ]
 
-type CarOption = { id: string; name: string; ownership_type: string | null }
+type CarOption = {
+  id: string
+  name: string
+  plate: string
+  ownership_type: string | null
+  has_gps: boolean | null
+  v2_partners: { name: string } | null
+}
 
 type TransactionGridRow = TransactionRow & { runningBalance: number }
 
@@ -64,11 +77,12 @@ export function TransactionsPage() {
   const [typeFilter, setTypeFilter] = useState<'' | TransactionType>('')
   const [categoryFilter, setCategoryFilter] = useState<'' | TransactionCategory>('')
   const [autoFeeFilter, setAutoFeeFilter] = useState<'' | 'yes' | 'no'>('')
+  const [pdfBusy, setPdfBusy] = useState(false)
 
   const loadCars = useCallback(async () => {
     const { data, error: qError } = await supabase
       .from('v2_cars')
-      .select('id, name, ownership_type')
+      .select('id, name, plate, ownership_type, has_gps, v2_partners(name)')
       .is('deleted_at', null)
       .order('name')
     if (qError) {
@@ -121,10 +135,39 @@ export function TransactionsPage() {
     void loadTx()
   }, [loadTx])
 
+  const selectedCar = useMemo(() => cars.find((c) => c.id === carId) ?? null, [cars, carId])
+
   const isPartnerCar = useMemo(
-    () => cars.find((c) => c.id === carId)?.ownership_type === 'partner',
-    [cars, carId],
+    () => selectedCar?.ownership_type === 'partner',
+    [selectedCar],
   )
+
+  async function handleDownloadLedgerPdf() {
+    if (!carId || !selectedCar) return
+    setPdfBusy(true)
+    try {
+      const rentalIds = rows.map((t) => t.rental_id).filter(Boolean) as string[]
+      const [rentalById, companyName] = await Promise.all([
+        fetchLedgerRentalMap(supabase, rentalIds),
+        fetchCompanyDisplayName(supabase),
+      ])
+      downloadLedgerReport({
+        companyName,
+        month,
+        car: {
+          name: selectedCar.name,
+          plate: selectedCar.plate,
+          ownership_type: selectedCar.ownership_type ?? 'rental',
+          partnerName: selectedCar.v2_partners?.name ?? null,
+          hasGps: Boolean(selectedCar.has_gps),
+        },
+        transactions: rows,
+        rentalById,
+      })
+    } finally {
+      setPdfBusy(false)
+    }
+  }
 
   const { financials, gridRows, filteredGridRows, tableFiltersActive } = useMemo(() => {
     let b = 0
@@ -351,7 +394,7 @@ export function TransactionsPage() {
         </Button>
       </Box>
 
-      {carId && gridRows.length > 0 ? (
+      {carId ? (
         <Paper variant="outlined" sx={{ p: 2, mb: 2, borderRadius: 2 }}>
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 1.5 }}>
             Rincian Keuangan — {month}
@@ -384,6 +427,17 @@ export function TransactionsPage() {
                 <Typography variant="subtitle2" fontWeight={700}>{formatIdr(financials.nettForPartner)}</Typography>
               </Box>
             )}
+          </Box>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<DownloadIcon />}
+              disabled={pdfBusy}
+              onClick={() => void handleDownloadLedgerPdf()}
+            >
+              Unduh Rekap Bulan Berjalan
+            </Button>
           </Box>
           {tableFiltersActive ? (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>

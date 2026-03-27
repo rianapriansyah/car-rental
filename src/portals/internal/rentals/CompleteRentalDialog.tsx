@@ -8,9 +8,15 @@ import {
   DialogContent,
   DialogTitle,
   Paper,
+  Switch,
   TextField,
   Typography,
+  FormControlLabel,
 } from '@mui/material'
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import { TimePicker } from '@mui/x-date-pickers/TimePicker'
+import dayjs from 'dayjs'
+import type { Dayjs } from 'dayjs'
 import { completeRentalWithIncome } from '../../../lib/feeEngine'
 import { formatIdr } from '../../../lib/formatIdr'
 
@@ -33,6 +39,9 @@ function buildCombinedNote(checkIn: string, checkOut: string): string | undefine
 export function CompleteRentalDialog({ open, rentalId, downPayment, checkInNote, onClose, onCompleted }: Props) {
   const [gross, setGross] = useState('')
   const [checkOutNote, setCheckOutNote] = useState('')
+  const [useCurrentTime, setUseCurrentTime] = useState(true)
+  const [endDate, setEndDate] = useState<Dayjs | null>(dayjs())
+  const [endTime, setEndTime] = useState<Dayjs | null>(dayjs())
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -56,7 +65,31 @@ export function CompleteRentalDialog({ open, rentalId, downPayment, checkInNote,
     setBusy(true)
     setError(null)
     const combinedNote = buildCombinedNote(checkInNote ?? '', checkOutNote)
-    const { error: doneError } = await completeRentalWithIncome(rentalId, totalGrossIncome, combinedNote)
+    const completionAt =
+      useCurrentTime
+        ? {
+            endDate: dayjs().format('YYYY-MM-DD'),
+            endTime: dayjs().format('HH:mm'),
+          }
+        : endDate && endTime
+          ? {
+              endDate: endDate.format('YYYY-MM-DD'),
+              endTime: endTime.format('HH:mm'),
+            }
+          : null
+
+    if (!completionAt) {
+      setBusy(false)
+      setError('Tanggal dan jam selesai wajib diisi jika Waktu Saat Ini dimatikan.')
+      return
+    }
+
+    const { error: doneError } = await completeRentalWithIncome(
+      rentalId,
+      totalGrossIncome,
+      combinedNote,
+      completionAt,
+    )
     setBusy(false)
     if (doneError) {
       setError(doneError.message)
@@ -64,6 +97,9 @@ export function CompleteRentalDialog({ open, rentalId, downPayment, checkInNote,
     }
     setGross('')
     setCheckOutNote('')
+    setUseCurrentTime(true)
+    setEndDate(dayjs())
+    setEndTime(dayjs())
     onCompleted()
     onClose()
   }
@@ -105,6 +141,34 @@ export function CompleteRentalDialog({ open, rentalId, downPayment, checkInNote,
               : undefined
           }
         />
+        <FormControlLabel
+          sx={{ mb: 1 }}
+          control={
+            <Switch
+              checked={useCurrentTime}
+              onChange={(_, v) => setUseCurrentTime(v)}
+              size="small"
+            />
+          }
+          label="Waktu Saat Ini"
+        />
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mb: 2 }}>
+          <DatePicker
+            label="Tanggal selesai"
+            value={endDate}
+            onChange={(v) => setEndDate(v)}
+            disabled={useCurrentTime}
+            slotProps={{ textField: { fullWidth: true, size: 'small' } }}
+          />
+          <TimePicker
+            label="Jam selesai (24 jam)"
+            value={endTime}
+            onChange={(v) => setEndTime(v)}
+            ampm={false}
+            disabled={useCurrentTime}
+            slotProps={{ textField: { fullWidth: true, size: 'small' } }}
+          />
+        </Box>
         <TextField
           size="small"
           label="Catatan check-out (opsional)"
