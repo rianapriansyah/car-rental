@@ -14,6 +14,7 @@ import {
   Typography,
 } from '@mui/material'
 import DownloadIcon from '@mui/icons-material/Download'
+import { useSearchParams } from 'react-router-dom'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import {
   InternalDataGridSearchPanel,
@@ -59,6 +60,7 @@ function matchesKeyword(row: TransactionRow, q: string): boolean {
 }
 
 export function TransactionsPage() {
+  const [searchParams] = useSearchParams()
   const [cars, setCars] = useState<CarOption[]>([])
   const [carId, setCarId] = useState<string>('')
   const [month, setMonth] = useState(() => {
@@ -89,9 +91,15 @@ export function TransactionsPage() {
       setError(qError.message)
       return
     }
-    setCars(data ?? [])
-    setCarId((prev) => prev || (data?.[0]?.id ?? ''))
-  }, [])
+    const list = data ?? []
+    setCars(list)
+    const fromUrl = searchParams.get('car')
+    setCarId((prev) => {
+      if (fromUrl && list.some((c) => c.id === fromUrl)) return fromUrl
+      if (prev && list.some((c) => c.id === prev)) return prev
+      return list[0]?.id ?? ''
+    })
+  }, [searchParams])
 
   const loadTx = useCallback(async () => {
     if (!carId) {

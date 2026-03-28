@@ -16,6 +16,7 @@ import {
   Typography,
 } from '@mui/material'
 import DownloadIcon from '@mui/icons-material/Download'
+import { Link as RouterLink } from 'react-router-dom'
 import { useTheme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import {
@@ -43,6 +44,9 @@ import {
   fetchLedgerRentalMap,
   filterTransactionsByMonth,
 } from '../../../lib/ledgerPdf'
+
+/** Preview rows on dashboard per car (newest first). */
+const HOME_TX_PREVIEW_COUNT = 5
 
 type LedgerSummaryRow = {
   car_id: string | null
@@ -264,6 +268,11 @@ export function HomePage() {
               bal += t.type === 'income' ? Number(t.amount) : -Number(t.amount)
               return bal
             })
+            const startIdx = Math.max(0, txs.length - HOME_TX_PREVIEW_COUNT)
+            const previewRows = txs
+              .slice(startIdx)
+              .map((t, j) => ({ t, runningIdx: startIdx + j }))
+              .reverse()
             return (
               <Card key={car.id} sx={{ mb: 2, overflow: 'hidden' }}>
                 <CardContent sx={{ px: { xs: 1.5, sm: 2 } }}>
@@ -295,7 +304,7 @@ export function HomePage() {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {txs.map((t, i) => (
+                          {previewRows.map(({ t, runningIdx }) => (
                             <TableRow key={t.id}>
                               <TableCell sx={{ whiteSpace: 'nowrap', fontSize: '0.8125rem' }}>
                                 {t.recorded_at
@@ -310,7 +319,7 @@ export function HomePage() {
                                 ) : null}
                               </TableCell>
                               <TableCell align="right">{formatIdr(Number(t.amount))}</TableCell>
-                              <TableCell align="right">{formatIdr(running[i] ?? 0)}</TableCell>
+                              <TableCell align="right">{formatIdr(running[runningIdx] ?? 0)}</TableCell>
                               <TableCell>
                                 {t.auto_fee ? (
                                   <Chip size="small" label="Auto" color="secondary" />
@@ -322,7 +331,27 @@ export function HomePage() {
                       </Table>
                     </ResponsiveTableContainer>
                   )}
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 1,
+                      mt: 2,
+                    }}
+                  >
+                    {txs.length > 0 ? (
+                      <Button
+                        component={RouterLink}
+                        to={`/internal/transactions?car=${encodeURIComponent(car.id)}`}
+                        size="small"
+                      >
+                        Lihat semua
+                      </Button>
+                    ) : (
+                      <span />
+                    )}
                     <Button
                       variant="outlined"
                       size="small"

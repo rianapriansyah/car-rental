@@ -28,6 +28,7 @@ import { ensureRenterInInfo, isRenterBlacklisted } from '../../../lib/renterInfo
 import { supabase } from '../../../lib/supabase'
 import { completeRentalWithIncome } from '../../../lib/feeEngine'
 import { formatIdr } from '../../../lib/formatIdr'
+import { calcCost, type CostBreakdown } from '../../../lib/rentalCost'
 import type { RentalWithCar } from '../../../types/rental'
 
 // ─── RENTAL COST HELPERS ─────────────────────────────────────────────────────
@@ -49,31 +50,6 @@ function formatElapsed(hours: number): string {
   if (remH > 0 || days === 0) parts.push(`${remH}h`)
   if (m > 0) parts.push(`${m}m`)
   return parts.join(' ')
-}
-
-type CostBreakdown = {
-  elapsedHours: number
-  fullDays: number
-  overtimeHours: number
-  dailyCost: number
-  overtimeCost: number
-  total: number
-}
-
-function calcCost(elapsedHours: number, dailyRate: number, overtimeRate: number): CostBreakdown {
-  // Minimum 1 day from the moment the rental is active.
-  // Day 1 window = 25h (1h grace), day 2+ windows = 24h each.
-  let fullDays = 1
-  let overtimeHours = 0
-  if (elapsedHours >= 25) {
-    const afterFirst = elapsedHours - 25
-    fullDays = 1 + Math.floor(afterFirst / 24)
-    const remainder = afterFirst % 24
-    overtimeHours = remainder > 0 ? Math.ceil(remainder) : 0
-  }
-  const dailyCost = fullDays * dailyRate
-  const overtimeCost = overtimeHours * overtimeRate
-  return { elapsedHours, fullDays, overtimeHours, dailyCost, overtimeCost, total: dailyCost + overtimeCost }
 }
 
 type CarOption = { id: string; name: string; plate: string }
