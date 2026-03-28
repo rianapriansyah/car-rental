@@ -1,55 +1,47 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import {
   Alert,
   Box,
   Button,
-  Chip,
   MenuItem,
   Paper,
   TextField,
   Typography,
 } from '@mui/material'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { OrderFormDialog } from './OrderFormDialog'
+import { OrderDetailDialog } from './OrderDetailDialog'
 import {
   InternalDataGridSearchPanel,
   searchPanelSelectSlotProps,
 } from '../../../components/InternalDataGridSearchPanel'
+import { V2OrderStatusChip } from '../../../components/V2OrderStatusChip'
 import { supabase } from '../../../lib/supabase'
-import { formatIdr } from '../../../lib/formatIdr'
-import type { RentalWithCar } from '../../../types/rental'
-import { CompleteRentalDialog } from './CompleteRentalDialog'
+import { fetchV2StatusesByType, type V2StatusRow } from '../../../lib/v2StatusHelpers'
+import type { Tables } from '../../../types/database'
+import { useV2RealtimeRefresh } from '../../../hooks/useV2RealtimeRefresh'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
-const STATUS_LABELS: Record<string, string> = { active: 'Aktif', completed: 'Selesai', cancelled: 'Dibatalkan' }
+type OrderRow = Tables<'v2_orders'> & {
+  v2_cars: { name: string; plate: string } | null
+}
 
 type CarFilter = { id: string; name: string }
 
-function calcDurationLabel(row: RentalWithCar): string {
-  if (row.status === 'cancelled') return '—'
-  const start = new Date(row.start_date)
-  const end = row.end_date ? new Date(row.end_date) : new Date()
-  const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
-  if (row.status === 'active') return `${days} hari (aktif)`
-  return `${days} hari`
-}
-
-function rentalSearchBlob(row: RentalWithCar): string {
+function orderSearchBlob(row: OrderRow): string {
   const car = row.v2_cars ? `${row.v2_cars.name} ${row.v2_cars.plate}` : ''
-  return `${row.renter_name} ${car}`.toLowerCase()
+  return `${row.renter_name} ${row.renter_phone ?? ''} ${car}`.toLowerCase()
 }
 
-function completionLabel(row: RentalWithCar): string {
-  if (!row.end_date) return '—'
-  return row.end_time ? `${row.end_date} ${row.end_time}` : row.end_date
-}
-
-export function RentalsPage() {
+export function OrdersListPage() {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const rentalIdParam = searchParams.get('rentalId')
-  const [rows, setRows] = useState<RentalWithCar[]>([])
+  const detailOrderId = searchParams.get('order')
+  const [rows, setRows] = useState<OrderRow[]>([])
   const [cars, setCars] = useState<CarFilter[]>([])
+  const [statusMap, setStatusMap] = useState<Map<string, V2StatusRow>>(new Map())
   const [draftCarFilter, setDraftCarFilter] = useState('')
   const [draftStatusFilter, setDraftStatusFilter] = useState('')
   const [appliedCarFilter, setAppliedCarFilter] = useState('')
@@ -58,8 +50,17 @@ export function RentalsPage() {
   const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [completeRental, setCompleteRental] = useState<RentalWithCar | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
+  const [orderFormOpen, setOrderFormOpen] = useState(false)
+
+  const loadStatuses = useCallback(async () => {
+    try {
+      const map = await fetchV2StatusesByType('order')
+      setStatusMap(map)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Gagal memuat status pesanan')
+    }
+  }, [])
 
   const loadCars = useCallback(async () => {
     const { data, error: qError } = await supabase
@@ -67,48 +68,44 @@ export function RentalsPage() {
       .select('id, name')
       .is('deleted_at', null)
       .order('name')
-    if (!qError) {
-      setCars(data ?? [])
-    }
+    if (!qError) setCars(data ?? [])
   }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    let q = supabase.from('v2_rentals').select('*, v2_cars(name, plate)').order('start_date', { ascending: false })
-    if (rentalIdParam) {
-      q = q.eq('id', rentalIdParam)
-    } else {
-      if (appliedCarFilter) {
-        q = q.eq('car_id', appliedCarFilter)
-      }
-      if (appliedStatusFilter) {
-        q = q.eq('status', appliedStatusFilter)
-      }
-    }
+    let q = supabase
+      .from('v2_orders')
+      .select('*, v2_cars(name, plate)')
+      .order('created_at', { ascending: false })
+    if (appliedCarFilter) q = q.eq('car_id', appliedCarFilter)
+    if (appliedStatusFilter) q = q.eq('status', appliedStatusFilter)
     const { data, error: qError } = await q
     setLoading(false)
     if (qError) {
       setError(qError.message)
       return
     }
-    setRows((data ?? []) as RentalWithCar[])
-  }, [appliedCarFilter, appliedStatusFilter, rentalIdParam])
+    setRows((data ?? []) as OrderRow[])
+  }, [appliedCarFilter, appliedStatusFilter])
+
+  useV2RealtimeRefresh('v2_orders', load)
 
   useEffect(() => {
+    void loadStatuses()
     void loadCars()
-  }, [loadCars])
+  }, [loadStatuses, loadCars])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  const statusOptions = useMemo(() => ['active', 'completed', 'cancelled'], [])
+  const statusOptions = useMemo(() => [...statusMap.keys()].sort(), [statusMap])
 
   const filteredRows = useMemo(() => {
     const q = keyword.trim().toLowerCase()
     if (!q) return rows
-    return rows.filter((row) => rentalSearchBlob(row).includes(q))
+    return rows.filter((row) => orderSearchBlob(row).includes(q))
   }, [rows, keyword])
 
   const handleSearch = (e: React.FormEvent) => {
@@ -126,14 +123,9 @@ export function RentalsPage() {
     setAppliedStatusFilter('')
     setExpanded(false)
     setPaginationModel((m) => ({ ...m, page: 0 }))
-    setSearchParams({}, { replace: true })
   }
 
-  const dismissRentalHighlight = () => {
-    setSearchParams({}, { replace: true })
-  }
-
-  const columns: GridColDef<RentalWithCar>[] = useMemo(
+  const columns: GridColDef<OrderRow>[] = useMemo(
     () => [
       {
         field: 'car',
@@ -144,86 +136,38 @@ export function RentalsPage() {
           row.v2_cars ? `${row.v2_cars.name} (${row.v2_cars.plate})` : '—',
       },
       { field: 'renter_name', headerName: 'Penyewa', width: 160 },
+      { field: 'renter_phone', headerName: 'Telepon', width: 140 },
       { field: 'start_date', headerName: 'Mulai', width: 120 },
+      { field: 'end_date', headerName: 'Selesai', width: 120 },
       {
-        field: 'completed_at',
-        headerName: 'Selesai',
-        width: 145,
-        valueGetter: (_v, row) => completionLabel(row),
-      },
-      {
-        field: 'duration',
+        field: 'duration_days',
         headerName: 'Durasi',
-        width: 140,
-        valueGetter: (_v, row) => calcDurationLabel(row),
-      },
-      {
-        field: 'down_payment',
-        headerName: 'DP',
-        width: 130,
-        align: 'right',
-        headerAlign: 'right',
-        valueGetter: (_v, row) => row.down_payment != null && row.down_payment > 0 ? formatIdr(Number(row.down_payment)) : '—',
-      },
-      {
-        field: 'gross_income',
-        headerName: 'Pendapatan Kotor',
-        width: 150,
-        align: 'right',
-        headerAlign: 'right',
-        valueGetter: (_v, row) => row.gross_income != null ? formatIdr(Number(row.gross_income)) : '—',
+        width: 100,
+        valueGetter: (_v, row) => (row.duration_days != null ? `${row.duration_days} hari` : '—'),
       },
       {
         field: 'status',
         headerName: 'Status',
-        width: 130,
+        width: 140,
         renderCell: (params) => (
-          <Chip size="small" label={STATUS_LABELS[params.row.status] ?? params.row.status} sx={{ my: 0.5 }} />
+          <V2OrderStatusChip statusId={params.row.status} statusMap={statusMap} />
         ),
       },
       {
-        field: 'is_manual',
-        headerName: 'Manual',
-        width: 100,
-        valueGetter: (_v, row) => (row.is_manual ? 'Ya' : 'Tidak'),
-      },
-      {
-        field: 'actions',
-        headerName: 'Aksi',
-        width: 130,
-        align: 'right',
-        headerAlign: 'right',
-        sortable: false,
-        filterable: false,
-        disableColumnMenu: true,
-        renderCell: (params) =>
-          params.row.status === 'active' ? (
-            <Button
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation()
-                setCompleteRental(params.row)
-              }}
-            >
-              Selesaikan
-            </Button>
-          ) : null,
+        field: 'deposit_paid',
+        headerName: 'DP lunas',
+        width: 110,
+        valueGetter: (_v, row) => (row.deposit_paid ? 'Ya' : 'Tidak'),
       },
     ],
-    [],
+    [statusMap],
   )
 
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
-        Sewa
+        Pesanan
       </Typography>
-
-      {rentalIdParam ? (
-        <Alert severity="success" sx={{ mb: 2 }} onClose={dismissRentalHighlight}>
-          Menampilkan sewa yang baru diaktifkan dari pesanan.
-        </Alert>
-      ) : null}
 
       <InternalDataGridSearchPanel
         keyword={keyword}
@@ -266,9 +210,9 @@ export function RentalsPage() {
               <MenuItem value="">
                 <em>Semua</em>
               </MenuItem>
-              {statusOptions.map((s) => (
-                <MenuItem key={s} value={s}>
-                  {STATUS_LABELS[s] ?? s}
+              {statusOptions.map((id) => (
+                <MenuItem key={id} value={id}>
+                  {statusMap.get(id)?.label ?? id}
                 </MenuItem>
               ))}
             </TextField>
@@ -276,9 +220,20 @@ export function RentalsPage() {
         }
       />
 
+      <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' }, mb: 2 }}>
+        <Button
+          variant="contained"
+          fullWidth
+          sx={{ maxWidth: { xs: '100%', sm: 200 } }}
+          onClick={() => setOrderFormOpen(true)}
+        >
+          Tambah pesanan
+        </Button>
+      </Box>
+
       {error ? <Alert severity="error">{error}</Alert> : null}
       {!loading && rows.length === 0 ? (
-        <Typography color="text.secondary">Tidak ada sewa yang sesuai.</Typography>
+        <Typography color="text.secondary">Tidak ada pesanan yang sesuai.</Typography>
       ) : (
         <Paper
           sx={{
@@ -298,17 +253,46 @@ export function RentalsPage() {
             pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
             disableRowSelectionOnClick
             autoHeight
-            sx={{ border: 'none' }}
+            sx={{ border: 'none', cursor: 'pointer' }}
+            onRowClick={(p) =>
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev)
+                next.set('order', String(p.id))
+                return next
+              })
+            }
           />
         </Paper>
       )}
-      <CompleteRentalDialog
-        open={completeRental !== null}
-        rentalId={completeRental?.id ?? null}
-        downPayment={Number(completeRental?.down_payment ?? 0)}
-        checkInNote={completeRental?.manual_note}
-        onClose={() => setCompleteRental(null)}
-        onCompleted={() => void load()}
+
+      <OrderFormDialog
+        open={orderFormOpen}
+        onClose={() => setOrderFormOpen(false)}
+        onSaved={(orderId) => {
+          setOrderFormOpen(false)
+          void load()
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev)
+            next.set('order', orderId)
+            return next
+          })
+        }}
+      />
+
+      <OrderDetailDialog
+        open={detailOrderId != null && detailOrderId !== ''}
+        orderId={detailOrderId}
+        onClose={() => {
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev)
+            next.delete('order')
+            return next
+          })
+        }}
+        onOrderUpdated={() => void load()}
+        onActivated={(rentalId) =>
+          navigate(`/internal/rentals?rentalId=${encodeURIComponent(rentalId)}`)
+        }
       />
     </Box>
   )

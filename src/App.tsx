@@ -10,6 +10,8 @@ import { CarsPage } from './portals/internal/cars/CarsPage'
 import { PartnersPage } from './portals/internal/partners/PartnersPage'
 import { InOutPage } from './portals/internal/inout/InOutPage'
 import { RentalsPage } from './portals/internal/rentals/RentalsPage'
+import { OrdersListPage } from './portals/internal/orders/OrdersListPage'
+import { OrderDetailPage } from './portals/internal/orders/OrderDetailPage'
 import { TransactionsPage } from './portals/internal/transactions/TransactionsPage'
 import { RenterInfoPage } from './portals/internal/renterinfo/RenterInfoPage'
 import { SettingsPage } from './portals/internal/settings/SettingsPage'
@@ -42,6 +44,9 @@ export default function App() {
               <Route path="cars" element={<CarsPage />} />
               <Route path="partners" element={<PartnersPage />} />
               <Route path="rentals" element={<RentalsPage />} />
+              <Route path="orders" element={<OrdersListPage />} />
+              <Route path="orders/new" element={<Navigate to="/internal/orders" replace />} />
+              <Route path="orders/:id" element={<OrderDetailPage />} />
               <Route path="transactions" element={<TransactionsPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>

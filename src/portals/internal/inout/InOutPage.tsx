@@ -20,6 +20,11 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { TimePicker } from '@mui/x-date-pickers/TimePicker'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
+import { RenterNamePhoneFields } from '../../../components/RenterNamePhoneFields'
+import { checkCarAvailability, getCheckInOrderWarnings } from '../../../lib/carAvailability'
+import { fetchOrderWarningDays } from '../../../lib/orderAppSettings'
+import { formatAvailabilityConflictMessage } from '../../../lib/formatScheduleConflict'
+import { ensureRenterInInfo, isRenterBlacklisted } from '../../../lib/renterInfoHelpers'
 import { supabase } from '../../../lib/supabase'
 import { completeRentalWithIncome } from '../../../lib/feeEngine'
 import { formatIdr } from '../../../lib/formatIdr'
@@ -86,11 +91,24 @@ function buildCombinedNote(checkIn: string, checkOut: string): string | undefine
 
 // ─── CHECK IN ────────────────────────────────────────────────────────────────
 
+function availabilityEndYmd(start: Dayjs, durationDaysInput: string): string {
+  const raw = durationDaysInput.trim()
+  const n = raw === '' ? null : Number(raw.replace(/\D/g, ''))
+  if (n != null && Number.isFinite(n) && n >= 1) {
+    return start.add(Math.floor(n) - 1, 'day').format('YYYY-MM-DD')
+  }
+  return start.format('YYYY-MM-DD')
+}
+
 function CheckInPanel({ onSaved }: { onSaved: () => void }) {
   const [cars, setCars] = useState<CarOption[]>([])
   const [carId, setCarId] = useState('')
   const [renterName, setRenterName] = useState('')
   const [renterPhone, setRenterPhone] = useState('')
+  const [renterBlacklistBlocked, setRenterBlacklistBlocked] = useState(false)
+  const [scheduleConflict, setScheduleConflict] = useState<string | null>(null)
+  const [orderCheckInBlock, setOrderCheckInBlock] = useState<string | null>(null)
+  const [orderCheckInWarning, setOrderCheckInWarning] = useState<string | null>(null)
   const [startDate, setStartDate] = useState<Dayjs | null>(null)
   const [startTime, setStartTime] = useState<Dayjs | null>(dayjs())
   const [durationDays, setDurationDays] = useState('')
@@ -115,10 +133,58 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
     void loadCars()
   }, [loadCars])
 
+  useEffect(() => {
+    if (!carId || !startDate) {
+      setScheduleConflict(null)
+      setOrderCheckInBlock(null)
+      setOrderCheckInWarning(null)
+      return
+    }
+    const startStr = startDate.format('YYYY-MM-DD')
+    const endStr = availabilityEndYmd(startDate, durationDays)
+    let cancelled = false
+    void (async () => {
+      const { rows, error: avErr } = await checkCarAvailability(carId, startStr, endStr)
+      if (cancelled) return
+      if (avErr) {
+        setScheduleConflict(avErr.message)
+        setOrderCheckInBlock(null)
+        setOrderCheckInWarning(null)
+        return
+      }
+      if (rows.length > 0) {
+        setScheduleConflict(formatAvailabilityConflictMessage(rows))
+        setOrderCheckInBlock(null)
+        setOrderCheckInWarning(null)
+        return
+      }
+      setScheduleConflict(null)
+      try {
+        const wd = await fetchOrderWarningDays()
+        const { blockMessage, warningMessage } = await getCheckInOrderWarnings(carId, startStr, wd)
+        if (cancelled) return
+        setOrderCheckInBlock(blockMessage)
+        setOrderCheckInWarning(blockMessage ? null : warningMessage)
+      } catch {
+        if (!cancelled) {
+          setOrderCheckInBlock(null)
+          setOrderCheckInWarning(null)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [carId, startDate, durationDays])
+
   function reset() {
     setCarId('')
     setRenterName('')
     setRenterPhone('')
+    setRenterBlacklistBlocked(false)
+    setScheduleConflict(null)
+    setOrderCheckInBlock(null)
+    setOrderCheckInWarning(null)
     setStartDate(null)
     setStartTime(dayjs())
     setDurationDays('')
@@ -134,6 +200,18 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
       setError('Kendaraan, nama penyewa, dan tanggal mulai wajib diisi.')
       return
     }
+    if (renterBlacklistBlocked) {
+      setError('Penyewa ini diblokir. Sewa tidak dapat dimulai.')
+      return
+    }
+    if (scheduleConflict) {
+      setError('Perbaiki bentrok jadwal sebelum menyimpan.')
+      return
+    }
+    if (orderCheckInBlock) {
+      setError(orderCheckInBlock)
+      return
+    }
     const downPaymentValue = Number(downPayment.replace(/\D/g, '') || 0)
     if (!Number.isFinite(downPaymentValue) || downPaymentValue < 0) {
       setError('DP harus berupa angka yang valid.')
@@ -144,7 +222,65 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
     setSuccess(null)
 
     const startStr = startDate.format('YYYY-MM-DD')
-    const durationParsed = durationDays.trim() === '' ? null : Number(durationDays)
+    const availabilityEnd = availabilityEndYmd(startDate, durationDays)
+
+    const blocked = await isRenterBlacklisted(renterName, renterPhone.trim() || null)
+    if (blocked) {
+      setSaving(false)
+      setError('Penyewa ini diblokir. Sewa tidak dapat dimulai.')
+      return
+    }
+
+    const { rows: conflicts, error: avError } = await checkCarAvailability(carId, startStr, availabilityEnd)
+    if (avError) {
+      setSaving(false)
+      setError(avError.message)
+      return
+    }
+    if (conflicts.length > 0) {
+      setSaving(false)
+      setError(formatAvailabilityConflictMessage(conflicts))
+      return
+    }
+
+    const { error: renterErr } = await ensureRenterInInfo(renterName, renterPhone.trim() || null)
+    if (renterErr) {
+      setSaving(false)
+      setError(renterErr.message)
+      return
+    }
+
+    const { rows: conflictsAgain, error: avError2 } = await checkCarAvailability(
+      carId,
+      startStr,
+      availabilityEnd,
+    )
+    if (avError2) {
+      setSaving(false)
+      setError(avError2.message)
+      return
+    }
+    if (conflictsAgain.length > 0) {
+      setSaving(false)
+      setError(formatAvailabilityConflictMessage(conflictsAgain))
+      return
+    }
+
+    try {
+      const wd = await fetchOrderWarningDays()
+      const { blockMessage } = await getCheckInOrderWarnings(carId, startStr, wd)
+      if (blockMessage) {
+        setSaving(false)
+        setError(blockMessage)
+        return
+      }
+    } catch (e) {
+      setSaving(false)
+      setError(e instanceof Error ? e.message : 'Gagal memverifikasi pesanan.')
+      return
+    }
+
+    const durationParsed = durationDays.trim() === '' ? null : Number(durationDays.replace(/\D/g, ''))
     const duration =
       durationParsed !== null && Number.isFinite(durationParsed) ? Math.round(durationParsed) : null
 
@@ -181,26 +317,6 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
       return
     }
 
-    if (phoneTrimmed) {
-      const { data: existing } = await supabase
-        .from('v2_renter_info')
-        .select('id, status')
-        .eq('phone', phoneTrimmed)
-        .maybeSingle()
-      if (existing) {
-        await supabase
-          .from('v2_renter_info')
-          .update({ name: renterName.trim(), updated_at: new Date().toISOString() })
-          .eq('id', existing.id)
-      } else {
-        await supabase.from('v2_renter_info').insert({
-          name: renterName.trim(),
-          phone: phoneTrimmed,
-          status: 'active',
-        })
-      }
-    }
-
     setSaving(false)
     const carName = cars.find((c) => c.id === carId)?.name ?? 'Car'
     setSuccess(`${carName} disewakan ke ${renterName.trim()}. Sewa dimulai.`)
@@ -212,6 +328,18 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {error ? <Alert severity="error" onClose={() => setError(null)}>{error}</Alert> : null}
       {success ? <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert> : null}
+
+      {scheduleConflict ? (
+        <Alert severity="error" sx={{ whiteSpace: 'pre-wrap' }}>
+          {scheduleConflict}
+        </Alert>
+      ) : null}
+      {orderCheckInBlock && !scheduleConflict ? (
+        <Alert severity="error">{orderCheckInBlock}</Alert>
+      ) : null}
+      {orderCheckInWarning && !scheduleConflict && !orderCheckInBlock ? (
+        <Alert severity="warning">{orderCheckInWarning}</Alert>
+      ) : null}
 
       <FormControl fullWidth size="small">
         <InputLabel id="ci-car">Kendaraan (tersedia)</InputLabel>
@@ -230,25 +358,17 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
         </Select>
       </FormControl>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-        <TextField
-          size="small"
-          label="Nama penyewa"
-          value={renterName}
-          onChange={(e) => setRenterName(e.target.value)}
-          required
-          fullWidth
-        />
-        <TextField
-          size="small"
-          label="Nomor HP (opsional)"
-          value={renterPhone}
-          onChange={(e) => setRenterPhone(e.target.value.replace(/\D/g, ''))}
-          fullWidth
-          inputMode="numeric"
-          placeholder="mis. 081234567890"
-        />
-      </Box>
+      {renterBlacklistBlocked ? (
+        <Alert severity="error">Penyewa ini berstatus diblokir.</Alert>
+      ) : null}
+      <RenterNamePhoneFields
+        name={renterName}
+        phone={renterPhone}
+        onNameChange={setRenterName}
+        onPhoneChange={setRenterPhone}
+        disabled={saving}
+        onBlacklistActiveChange={setRenterBlacklistBlocked}
+      />
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
         <DatePicker
@@ -304,7 +424,11 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
 
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
         <Button variant="outlined" onClick={reset} disabled={saving}>Reset</Button>
-        <Button variant="contained" onClick={() => void handleSave()} disabled={saving}>
+        <Button
+          variant="contained"
+          onClick={() => void handleSave()}
+          disabled={saving || renterBlacklistBlocked || !!scheduleConflict || !!orderCheckInBlock}
+        >
           {saving ? 'Memulai…' : 'Mulai sewa'}
         </Button>
       </Box>

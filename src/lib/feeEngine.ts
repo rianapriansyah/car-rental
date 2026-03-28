@@ -38,6 +38,15 @@ export async function completeRentalWithIncome(
     return { error: new Error(rpcError.message) }
   }
 
+  const { error: orderDoneError } = await supabase
+    .from('v2_orders')
+    .update({ status: 'completed' })
+    .eq('rental_id', rentalId)
+
+  if (orderDoneError) {
+    return { error: new Error(orderDoneError.message) }
+  }
+
   // Ensure custom completion timestamp remains persisted even if RPC applies NOW() defaults.
   if (completionAt) {
     const { error: finalUpdateError } = await supabase

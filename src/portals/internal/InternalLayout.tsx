@@ -30,6 +30,7 @@ const ADMIN_NAV = [
   { to: '/internal/cars', label: 'Kendaraan' },
   { to: '/internal/partners', label: 'Mitra' },
   { to: '/internal/rentals', label: 'Sewa' },
+  { to: '/internal/orders', label: 'Pesanan' },
   { to: '/internal/transactions', label: 'Transaksi' },
   { to: '/internal/settings', label: 'Pengaturan' },
 ]

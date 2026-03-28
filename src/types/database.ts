@@ -80,6 +80,108 @@ export type Database = {
           },
         ]
       }
+      v2_orders: {
+        Row: {
+          id: string
+          car_id: string
+          renter_name: string
+          renter_phone: string | null
+          rental_id: string | null
+          status: string
+          start_date: string
+          end_date: string
+          duration_days: number | null
+          estimated_income: number | null
+          deposit_amount: number | null
+          deposit_paid: boolean | null
+          cancel_reason: string | null
+          cancelled_at: string | null
+          notes: string | null
+          created_by: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          car_id: string
+          renter_name: string
+          renter_phone?: string | null
+          rental_id?: string | null
+          status?: string
+          start_date: string
+          end_date: string
+          duration_days?: number | null
+          estimated_income?: number | null
+          deposit_amount?: number | null
+          deposit_paid?: boolean | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          car_id?: string
+          renter_name?: string
+          renter_phone?: string | null
+          rental_id?: string | null
+          status?: string
+          start_date?: string
+          end_date?: string
+          duration_days?: number | null
+          estimated_income?: number | null
+          deposit_amount?: number | null
+          deposit_paid?: boolean | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'v2_orders_car_id_fkey'
+            columns: ['car_id']
+            isOneToOne: false
+            referencedRelation: 'v2_cars'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'v2_orders_rental_id_fkey'
+            columns: ['rental_id']
+            isOneToOne: false
+            referencedRelation: 'v2_rentals'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      v2_statuses: {
+        Row: {
+          id: string
+          type: string
+          label: string
+          color: string
+          description: string | null
+        }
+        Insert: {
+          id: string
+          type: string
+          label: string
+          color: string
+          description?: string | null
+        }
+        Update: {
+          id?: string
+          type?: string
+          label?: string
+          color?: string
+          description?: string | null
+        }
+        Relationships: []
+      }
       v2_partners: {
         Row: {
           id: string
@@ -258,6 +360,16 @@ export type Database = {
       }
     }
     Views: {
+      v2_car_availability: {
+        Row: {
+          car_id: string | null
+          start_date: string | null
+          end_date: string | null
+          source: string | null
+          renter_name: string | null
+        }
+        Relationships: []
+      }
       v2_car_ledger_summary: {
         Row: {
           car_id: string | null
@@ -270,6 +382,14 @@ export type Database = {
       }
     }
     Functions: {
+      activate_order: {
+        Args: { p_order_id: string }
+        Returns: string
+      }
+      check_car_availability: {
+        Args: { p_car_id: string; p_start: string; p_end: string }
+        Returns: { source: string; start_date: string; end_date: string; renter_name: string | null }[]
+      }
       claim_partner_for_current_user: {
         Args: Record<PropertyKey, never>
         Returns: undefined

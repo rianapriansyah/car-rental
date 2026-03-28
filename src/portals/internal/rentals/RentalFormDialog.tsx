@@ -17,6 +17,10 @@ import {
 } from '@mui/material'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import type { Dayjs } from 'dayjs'
+import { RenterNamePhoneFields } from '../../../components/RenterNamePhoneFields'
+import { checkCarAvailability } from '../../../lib/carAvailability'
+import { formatAvailabilityConflictMessage } from '../../../lib/formatScheduleConflict'
+import { ensureRenterInInfo, isRenterBlacklisted } from '../../../lib/renterInfoHelpers'
 import { supabase } from '../../../lib/supabase'
 
 type CarOption = { id: string; name: string; plate: string }
@@ -31,6 +35,8 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
   const [cars, setCars] = useState<CarOption[]>([])
   const [carId, setCarId] = useState('')
   const [renterName, setRenterName] = useState('')
+  const [renterPhone, setRenterPhone] = useState('')
+  const [renterBlacklistBlocked, setRenterBlacklistBlocked] = useState(false)
   const [startDate, setStartDate] = useState<Dayjs | null>(null)
   const [endDate, setEndDate] = useState<Dayjs | null>(null)
   const [durationDays, setDurationDays] = useState('')
@@ -45,6 +51,8 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
     setError(null)
     setCarId('')
     setRenterName('')
+    setRenterPhone('')
+    setRenterBlacklistBlocked(false)
     setStartDate(null)
     setEndDate(null)
     setDurationDays('')
@@ -76,11 +84,58 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
       setError('Kendaraan, nama penyewa, dan tanggal mulai wajib diisi.')
       return
     }
+    if (renterBlacklistBlocked) {
+      setError('Penyewa ini diblokir. Sewa tidak dapat dimulai.')
+      return
+    }
     setSaving(true)
     setError(null)
 
     const startStr = startDate.format('YYYY-MM-DD')
     const endStr = endDate ? endDate.format('YYYY-MM-DD') : null
+    const availabilityEnd = endStr ?? startStr
+
+    const blocked = await isRenterBlacklisted(renterName, renterPhone.trim() || null)
+    if (blocked) {
+      setSaving(false)
+      setError('Penyewa ini diblokir. Sewa tidak dapat dimulai.')
+      return
+    }
+
+    const { rows: conflicts, error: avError } = await checkCarAvailability(carId, startStr, availabilityEnd)
+    if (avError) {
+      setSaving(false)
+      setError(avError.message)
+      return
+    }
+    if (conflicts.length > 0) {
+      setSaving(false)
+      setError(formatAvailabilityConflictMessage(conflicts))
+      return
+    }
+
+    const { error: renterErr } = await ensureRenterInInfo(renterName, renterPhone.trim() || null)
+    if (renterErr) {
+      setSaving(false)
+      setError(renterErr.message)
+      return
+    }
+
+    const { rows: conflictsAgain, error: avError2 } = await checkCarAvailability(
+      carId,
+      startStr,
+      availabilityEnd,
+    )
+    if (avError2) {
+      setSaving(false)
+      setError(avError2.message)
+      return
+    }
+    if (conflictsAgain.length > 0) {
+      setSaving(false)
+      setError(formatAvailabilityConflictMessage(conflictsAgain))
+      return
+    }
 
     const durationParsed = durationDays.trim() === '' ? null : Number(durationDays)
     const duration =
@@ -97,6 +152,7 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
       .insert({
         car_id: carId,
         renter_name: renterName.trim(),
+        renter_phone: renterPhone.trim() || null,
         start_date: startStr,
         end_date: endStr,
         duration_days: duration,
@@ -153,13 +209,18 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
               ))}
             </Select>
           </FormControl>
-          <TextField
-            size="small"
-            label="Nama penyewa"
-            value={renterName}
-            onChange={(e) => setRenterName(e.target.value)}
-            required
-            fullWidth
+          {renterBlacklistBlocked ? (
+            <Alert severity="error" sx={{ mb: 0 }}>
+              Penyewa ini berstatus diblokir.
+            </Alert>
+          ) : null}
+          <RenterNamePhoneFields
+            name={renterName}
+            phone={renterPhone}
+            onNameChange={setRenterName}
+            onPhoneChange={setRenterPhone}
+            disabled={saving}
+            onBlacklistActiveChange={setRenterBlacklistBlocked}
           />
           <Box
             sx={{
@@ -218,7 +279,11 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
         <Button onClick={handleClose} disabled={saving}>
           Batal
         </Button>
-        <Button variant="contained" onClick={() => void save()} disabled={saving}>
+        <Button
+          variant="contained"
+          onClick={() => void save()}
+          disabled={saving || renterBlacklistBlocked}
+        >
           {saving ? 'Memulai…' : 'Mulai sewa'}
         </Button>
       </DialogActions>
