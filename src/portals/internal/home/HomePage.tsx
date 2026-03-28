@@ -36,6 +36,7 @@ import { isAdminUser } from '../../../lib/authRole'
 import { usePartnerProfile } from '../../../hooks/usePartnerProfile'
 import type { CarWithPartner } from '../../../types/car'
 import type { TransactionRow } from '../../../types/transaction'
+import { transactionCategoryLabel } from '../../../types/transaction'
 import { formatIdr } from '../../../lib/formatIdr'
 import {
   currentMonthYyyyMm,
@@ -312,12 +313,7 @@ export function HomePage() {
                                   : '—'}
                               </TableCell>
                               <TableCell>{t.type}</TableCell>
-                              <TableCell>
-                                {t.category}
-                                {t.category === 'partner_fee' ? (
-                                  <Chip sx={{ ml: 0.5, mt: 0.5 }} size="small" label="Partner fee" />
-                                ) : null}
-                              </TableCell>
+                              <TableCell>{transactionCategoryLabel(t.category)}</TableCell>
                               <TableCell align="right">{formatIdr(Number(t.amount))}</TableCell>
                               <TableCell align="right">{formatIdr(running[runningIdx] ?? 0)}</TableCell>
                               <TableCell>

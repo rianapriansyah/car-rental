@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { TransactionRow } from '../types/transaction'
-import type { TransactionCategory } from '../types/transaction'
+import { transactionCategoryLabel } from '../types/transaction'
 import { formatIdr } from './formatIdr'
 
 export type LedgerPdfCar = {
@@ -25,15 +25,8 @@ const ORANGE: [number, number, number] = [230, 81, 0]
 const BORDER: [number, number, number] = [220, 220, 220]
 
 function categoryLabel(cat: string): string {
-  const map: Record<TransactionCategory, string> = {
-    rental_income: 'Sewa',
-    gps_topup: 'Isi GPS',
-    maintenance: 'Perawatan',
-    partner_fee: 'Biaya mitra',
-    owner_withdrawal: 'Penarikan',
-    other: 'Lainnya',
-  }
-  return map[cat as TransactionCategory] ?? cat
+  if (cat === 'rental_income') return 'Sewa'
+  return transactionCategoryLabel(cat)
 }
 
 function rentalDurationDays(r: LedgerPdfRentalInfo): string {

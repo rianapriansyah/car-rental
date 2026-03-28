@@ -19,6 +19,7 @@ import { supabase } from '../../../lib/supabase'
 import type { PartnerRow } from '../../../types/partner'
 import type { CarWithPartner } from '../../../types/car'
 import { ConfirmDialog } from '../../../components/ConfirmDialog.tsx'
+import { DangerZone } from '../../../components/DangerZone'
 
 type Props = {
   open: boolean
@@ -248,31 +249,25 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
             fullWidth
           />
         </DialogContent>
-        <DialogActions
-          sx={{
-            px: 3,
-            pb: 2,
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 1,
-          }}
-        >
-          <span>
-            {initial && !initial.deleted_at ? (
-              <Button color="error" onClick={() => setConfirmDeleteOpen(true)} disabled={saving}>
-                Hapus
-              </Button>
-            ) : null}
-          </span>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Button onClick={handleClose} disabled={saving}>
-              Batal
-            </Button>
-            <Button variant="contained" onClick={() => void handleSave()} disabled={saving}>
-              {saving ? 'Menyimpan…' : 'Simpan'}
-            </Button>
-          </Box>
+        <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
+          <Button onClick={handleClose} disabled={saving}>
+            Batal
+          </Button>
+          <Button variant="contained" onClick={() => void handleSave()} disabled={saving}>
+            {saving ? 'Menyimpan…' : 'Simpan'}
+          </Button>
         </DialogActions>
+        {initial && !initial.deleted_at ? (
+          <Box sx={{ px: 3, pb: 2, pt: 2 }}>
+            <DangerZone
+              title="Zona bahaya"
+              description="Kendaraan ini akan ditandai dihapus dan tidak muncul di armada publik maupun portal mitra."
+              actionLabel="Hapus kendaraan"
+              disabled={saving}
+              onAction={() => setConfirmDeleteOpen(true)}
+            />
+          </Box>
+        ) : null}
       </Dialog>
       <ConfirmDialog
         open={confirmDeleteOpen}

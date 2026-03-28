@@ -21,7 +21,13 @@ import {
   searchPanelSelectSlotProps,
 } from '../../../components/InternalDataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
-import type { TransactionRow, TransactionCategory, TransactionType } from '../../../types/transaction'
+import {
+  TRANSACTION_CATEGORY_LABELS,
+  transactionCategoryLabel,
+  type TransactionRow,
+  type TransactionCategory,
+  type TransactionType,
+} from '../../../types/transaction'
 import { formatIdr } from '../../../lib/formatIdr'
 import { ManualTransactionDialog } from './ManualTransactionDialog'
 import {
@@ -36,7 +42,7 @@ const CATEGORY_OPTIONS: TransactionCategory[] = [
   'rental_income',
   'gps_topup',
   'maintenance',
-  'partner_fee',
+  'rental_fee',
   'owner_withdrawal',
   'other',
 ]
@@ -131,12 +137,23 @@ export function TransactionsPage() {
 
   useEffect(() => {
     void loadCars()
-    void supabase
-      .from('v2_app_settings')
-      .select('value')
-      .eq('key', 'partner_fee_pct')
-      .maybeSingle()
-      .then(({ data }) => { if (data?.value) setFeePct(Number(data.value)) })
+    void (async () => {
+      const { data: rentalKey } = await supabase
+        .from('v2_app_settings')
+        .select('value')
+        .eq('key', 'rental_fee_pct')
+        .maybeSingle()
+      if (rentalKey?.value) {
+        setFeePct(Number(rentalKey.value))
+        return
+      }
+      const { data: legacy } = await supabase
+        .from('v2_app_settings')
+        .select('value')
+        .eq('key', 'partner_fee_pct')
+        .maybeSingle()
+      if (legacy?.value) setFeePct(Number(legacy.value))
+    })()
   }, [loadCars])
 
   useEffect(() => {
@@ -181,8 +198,8 @@ export function TransactionsPage() {
     let b = 0
     const out: TransactionGridRow[] = []
     let totalIncome = 0
-    let totalExpenseOps = 0   // all expenses except partner_fee (GPS, maintenance, etc.)
-    let totalPartnerFee = 0   // auto-recorded partner_fee entries
+    let totalExpenseOps = 0   // all expenses except rental_fee (GPS, maintenance, etc.)
+    let totalRentalFee = 0   // auto-recorded rental_fee entries (legacy: partner_fee)
 
     for (const t of rows) {
       const amt = Number(t.amount)
@@ -192,18 +209,18 @@ export function TransactionsPage() {
 
       if (t.type === 'income') {
         totalIncome += amt
-      } else if (t.category === 'partner_fee') {
-        totalPartnerFee += amt
+      } else if (t.category === 'rental_fee' || t.category === 'partner_fee') {
+        totalRentalFee += amt
       } else {
         totalExpenseOps += amt
       }
     }
 
-    // For partner-owned cars: use recorded partner_fee rows if present, otherwise calculate.
+    // For partner-owned cars: use recorded rental_fee rows if present, otherwise calculate.
     // For rental-owned cars: no management fee applies.
     const feeRental = isPartnerCar
-      ? (totalPartnerFee > 0
-          ? totalPartnerFee
+      ? (totalRentalFee > 0
+          ? totalRentalFee
           : Math.round((totalIncome - totalExpenseOps) * feePct / 100))
       : 0
     const nettForPartner = totalIncome - totalExpenseOps - feeRental
@@ -262,7 +279,12 @@ export function TransactionsPage() {
           row.recorded_at ? new Date(row.recorded_at).toLocaleString('id-ID') : '—',
       },
       { field: 'type', headerName: 'Tipe', width: 100 },
-      { field: 'category', headerName: 'Kategori', width: 120 },
+      {
+        field: 'category',
+        headerName: 'Kategori',
+        width: 140,
+        valueGetter: (_v, row) => transactionCategoryLabel(row.category),
+      },
       {
         field: 'amount',
         headerName: 'Jumlah',
@@ -366,7 +388,7 @@ export function TransactionsPage() {
                 </MenuItem>
                 {CATEGORY_OPTIONS.map((c) => (
                   <MenuItem key={c} value={c}>
-                    {c}
+                    {TRANSACTION_CATEGORY_LABELS[c]}
                   </MenuItem>
                 ))}
               </TextField>

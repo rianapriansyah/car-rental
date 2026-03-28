@@ -4,11 +4,6 @@ import {
   Box,
   Button,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
   MenuItem,
   Paper,
   TextField,
@@ -20,10 +15,10 @@ import {
   searchPanelSelectSlotProps,
 } from '../../../components/InternalDataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
-import { invitePartner } from '../../../lib/invitePartner'
-import { deletePartner } from '../../../lib/deletePartner'
 import type { PartnerRow } from '../../../types/partner'
+import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { PartnerFormDialog } from './PartnerFormDialog.tsx'
+import { PartnerManageDialog } from './PartnerManageDialog.tsx'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
@@ -39,9 +34,7 @@ export function PartnersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [invitingId, setInvitingId] = useState<string | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<PartnerRow | null>(null)
-  const [deleting, setDeleting] = useState(false)
+  const [managePartner, setManagePartner] = useState<PartnerRow | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
   const [keyword, setKeyword] = useState('')
@@ -63,36 +56,6 @@ export function PartnersPage() {
   useEffect(() => {
     void load()
   }, [load])
-
-  const resendInvite = useCallback(
-    async (row: PartnerRow) => {
-      setInvitingId(row.id)
-      setError(null)
-      const result = await invitePartner({ name: row.name, email: row.email, phone: row.phone, notes: row.notes })
-      setInvitingId(null)
-      if (!result.ok) {
-        setError(`Undangan gagal: ${result.message}`)
-        return
-      }
-      void load()
-    },
-    [load],
-  )
-
-  const handleDelete = useCallback(async () => {
-    if (!deleteTarget) return
-    setDeleting(true)
-    setError(null)
-    const result = await deletePartner(deleteTarget.id)
-    setDeleting(false)
-    if (!result.ok) {
-      setError(result.message)
-      setDeleteTarget(null)
-      return
-    }
-    setDeleteTarget(null)
-    void load()
-  }, [deleteTarget, load])
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
@@ -142,39 +105,22 @@ export function PartnersPage() {
       {
         field: 'actions',
         headerName: 'Aksi',
-        width: 220,
+        width: 72,
+        align: 'right',
+        headerAlign: 'right',
         sortable: false,
         filterable: false,
         disableColumnMenu: true,
         renderCell: (params) => (
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', height: '100%' }}>
-            {!params.row.verified && (
-              <Button
-                size="small"
-                disabled={invitingId === params.row.id}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  void resendInvite(params.row)
-                }}
-              >
-                {invitingId === params.row.id ? 'Mengirim…' : 'Kirim ulang'}
-              </Button>
-            )}
-            <Button
-              size="small"
-              color="error"
-              onClick={(e) => {
-                e.stopPropagation()
-                setDeleteTarget(params.row)
-              }}
-            >
-              Hapus
-            </Button>
-          </Box>
+          <DataGridUpdateIconButton
+            onClick={() => {
+              setManagePartner(params.row)
+            }}
+          />
         ),
       },
     ],
-    [invitingId, resendInvite],
+    [],
   )
 
   return (
@@ -251,22 +197,12 @@ export function PartnersPage() {
       )}
       <PartnerFormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
 
-      <Dialog open={!!deleteTarget} onClose={() => !deleting && setDeleteTarget(null)}>
-        <DialogTitle>Hapus mitra?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Anda yakin ingin menghapus <strong>{deleteTarget?.name}</strong>? Tindakan ini tidak dapat dibatalkan.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)} disabled={deleting}>
-            Batal
-          </Button>
-          <Button color="error" variant="contained" disabled={deleting} onClick={() => void handleDelete()}>
-            {deleting ? 'Menghapus…' : 'Hapus'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <PartnerManageDialog
+        open={managePartner !== null}
+        partner={managePartner}
+        onClose={() => setManagePartner(null)}
+        onSaved={() => void load()}
+      />
     </Box>
   )
 }

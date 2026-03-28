@@ -18,6 +18,8 @@ import {
   searchPanelSelectSlotProps,
 } from '../../../components/InternalDataGridSearchPanel'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { DangerZone } from '../../../components/DangerZone'
+import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { supabase } from '../../../lib/supabase'
 import type { Tables } from '../../../types/database'
 
@@ -57,6 +59,8 @@ function RenterInfoFormDialog({ open, initial, onClose, onSaved }: FormDialogPro
   const [status, setStatus] = useState('active')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -66,6 +70,7 @@ function RenterInfoFormDialog({ open, initial, onClose, onSaved }: FormDialogPro
       setStatus(initial?.status ?? 'active')
       setNotes(initial?.notes ?? '')
       setError(null)
+      setConfirmDeleteOpen(false)
     }
   }, [open, initial])
 
@@ -102,7 +107,23 @@ function RenterInfoFormDialog({ open, initial, onClose, onSaved }: FormDialogPro
     onClose()
   }
 
+  async function handleDeleteConfirmed() {
+    if (!initial) return
+    setDeleting(true)
+    setError(null)
+    const { error: dErr } = await supabase.from('v2_renter_info').delete().eq('id', initial.id)
+    setDeleting(false)
+    setConfirmDeleteOpen(false)
+    if (dErr) {
+      setError(dErr.message)
+      return
+    }
+    onSaved()
+    onClose()
+  }
+
   return (
+    <>
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{initial ? 'Ubah info penyewa' : 'Tambah info penyewa'}</DialogTitle>
       <DialogContent>
@@ -149,13 +170,33 @@ function RenterInfoFormDialog({ open, initial, onClose, onSaved }: FormDialogPro
           />
         </Box>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={saving}>Batal</Button>
-        <Button type="submit" form="renter-info-form" variant="contained" disabled={saving}>
+      <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'flex-end', gap: 1 }}>
+        <Button onClick={onClose} disabled={saving || deleting}>Batal</Button>
+        <Button type="submit" form="renter-info-form" variant="contained" disabled={saving || deleting}>
           {saving ? 'Menyimpan…' : 'Simpan'}
         </Button>
       </DialogActions>
+      {initial ? (
+        <Box sx={{ px: 3, pb: 2, pt: 2 }}>
+          <DangerZone
+            title="Zona bahaya"
+            description="Menghapus info penyewa tidak dapat dibatalkan."
+            actionLabel="Hapus info penyewa"
+            disabled={saving || deleting}
+            onAction={() => setConfirmDeleteOpen(true)}
+          />
+        </Box>
+      ) : null}
     </Dialog>
+    <ConfirmDialog
+      open={confirmDeleteOpen}
+      title="Hapus info penyewa?"
+      description={`Hapus "${initial?.name ?? ''}" dari info penyewa? Tindakan ini tidak bisa dibatalkan.`}
+      onConfirm={() => void handleDeleteConfirmed()}
+      onCancel={() => setConfirmDeleteOpen(false)}
+      confirmLabel={deleting ? 'Menghapus…' : 'Hapus'}
+    />
+    </>
   )
 }
 
@@ -167,7 +208,6 @@ export function RenterInfoPage() {
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<RenterInfo | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<RenterInfo | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
   const [keyword, setKeyword] = useState('')
@@ -222,13 +262,6 @@ export function RenterInfoPage() {
 
   const collapseExpanded = useCallback(() => setExpanded(false), [])
 
-  async function handleDelete() {
-    if (!deleteTarget) return
-    await supabase.from('v2_renter_info').delete().eq('id', deleteTarget.id)
-    setDeleteTarget(null)
-    void load()
-  }
-
   const columns: GridColDef<RenterInfo>[] = [
     { field: 'name', headerName: 'Nama', flex: 1.2, minWidth: 140 },
     { field: 'phone', headerName: 'Telepon', flex: 1, minWidth: 130, valueGetter: (v) => v ?? '—' },
@@ -241,24 +274,18 @@ export function RenterInfoPage() {
     { field: 'notes', headerName: 'Catatan', flex: 2, minWidth: 180, valueGetter: (v) => v ?? '—' },
     {
       field: '_actions',
-      headerName: '',
-      width: 130,
+      headerName: 'Aksi',
+      width: 72,
+      align: 'right',
+      headerAlign: 'right',
       sortable: false,
       renderCell: (p) => (
-        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', height: '100%' }}>
-          <Button
-            size="small"
-            onClick={() => {
-              setEditing(p.row)
-              setDialogOpen(true)
-            }}
-          >
-            Ubah
-          </Button>
-          <Button size="small" color="error" onClick={() => setDeleteTarget(p.row)}>
-            Hapus
-          </Button>
-        </Box>
+        <DataGridUpdateIconButton
+          onClick={() => {
+            setEditing(p.row)
+            setDialogOpen(true)
+          }}
+        />
       ),
     },
   ]
@@ -320,7 +347,6 @@ export function RenterInfoPage() {
         pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
         disableRowSelectionOnClick
         autoHeight
-        density="compact"
       />
 
       <RenterInfoFormDialog
@@ -328,14 +354,6 @@ export function RenterInfoPage() {
         initial={editing}
         onClose={() => setDialogOpen(false)}
         onSaved={() => void load()}
-      />
-
-      <ConfirmDialog
-        open={!!deleteTarget}
-        title="Hapus info penyewa"
-        description={`Hapus "${deleteTarget?.name ?? ''}" dari info penyewa? Tindakan ini tidak bisa dibatalkan.`}
-        onConfirm={() => void handleDelete()}
-        onCancel={() => setDeleteTarget(null)}
       />
     </Box>
   )

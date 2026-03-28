@@ -17,13 +17,17 @@ import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
 import { supabase } from '../../../lib/supabase'
-import type { TransactionCategory, TransactionType } from '../../../types/transaction'
+import {
+  TRANSACTION_CATEGORY_LABELS,
+  type TransactionCategory,
+  type TransactionType,
+} from '../../../types/transaction'
 
 const CATEGORIES: TransactionCategory[] = [
   'rental_income',
   'gps_topup',
   'maintenance',
-  'partner_fee',
+  'rental_fee',
   'owner_withdrawal',
   'other',
 ]
@@ -116,7 +120,7 @@ export function ManualTransactionDialog({ open, carId, onClose, onSaved }: Props
             >
               {CATEGORIES.map((c) => (
                 <MenuItem key={c} value={c}>
-                  {c}
+                  {TRANSACTION_CATEGORY_LABELS[c]}
                 </MenuItem>
               ))}
             </Select>

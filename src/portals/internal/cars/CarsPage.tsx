@@ -19,6 +19,7 @@ import {
 import { supabase } from '../../../lib/supabase'
 import { formatIdr } from '../../../lib/formatIdr'
 import type { CarWithPartner } from '../../../types/car'
+import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { CarFormDialog } from './CarFormDialog.tsx'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
@@ -133,23 +134,19 @@ export function CarsPage() {
       {
         field: 'actions',
         headerName: 'Aksi',
-        width: 100,
+        width: 72,
         align: 'right',
         headerAlign: 'right',
         sortable: false,
         filterable: false,
         disableColumnMenu: true,
         renderCell: (params) => (
-          <Button
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation()
+          <DataGridUpdateIconButton
+            onClick={() => {
               setEditing(params.row)
               setDialogOpen(true)
             }}
-          >
-            Ubah
-          </Button>
+          />
         ),
       },
     ],

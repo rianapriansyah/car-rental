@@ -10,6 +10,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import {
   InternalDataGridSearchPanel,
@@ -190,7 +191,7 @@ export function RentalsPage() {
       {
         field: 'actions',
         headerName: 'Aksi',
-        width: 130,
+        width: 72,
         align: 'right',
         headerAlign: 'right',
         sortable: false,
@@ -198,15 +199,10 @@ export function RentalsPage() {
         disableColumnMenu: true,
         renderCell: (params) =>
           params.row.status === 'active' ? (
-            <Button
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation()
-                setCompleteRental(params.row)
-              }}
-            >
-              Selesaikan
-            </Button>
+            <DataGridUpdateIconButton
+              title="Selesaikan sewa"
+              onClick={() => setCompleteRental(params.row)}
+            />
           ) : null,
       },
     ],
