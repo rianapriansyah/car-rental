@@ -1,32 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  MenuItem,
-  Paper,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { Alert, Box, Button, Chip, Paper, Typography } from '@mui/material'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
-import {
-  InternalDataGridSearchPanel,
-  searchPanelSelectSlotProps,
-} from '../../../components/InternalDataGridSearchPanel'
+import { InternalDataGridSearchPanel } from '../../../components/InternalDataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
 import type { PartnerRow } from '../../../types/partner'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { PartnerFormDialog } from './PartnerFormDialog.tsx'
 import { PartnerManageDialog } from './PartnerManageDialog.tsx'
+import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
-function matchesKeyword(row: PartnerRow, q: string): boolean {
-  if (!q.trim()) return true
-  const s = q.trim().toLowerCase()
-  const blob = `${row.name} ${row.email} ${row.phone ?? ''}`.toLowerCase()
-  return blob.includes(s)
+function partnerSearchBlob(row: PartnerRow): string {
+  const base = `${row.name} ${row.email} ${row.phone ?? ''}`
+  if (row.verified) {
+    return `${base} terverifikasi verified`.toLowerCase()
+  }
+  if (row.auth_user_id) {
+    return `${base} terhubung connected`.toLowerCase()
+  }
+  return `${base} menunggu verifikasi pending`.toLowerCase()
 }
 
 export function PartnersPage() {
@@ -38,8 +31,6 @@ export function PartnersPage() {
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
   const [keyword, setKeyword] = useState('')
-  const [expanded, setExpanded] = useState(false)
-  const [statusFilter, setStatusFilter] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -58,13 +49,8 @@ export function PartnersPage() {
   }, [load])
 
   const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
-      if (!matchesKeyword(row, keyword)) return false
-      if (statusFilter === 'verified' && !row.verified) return false
-      if (statusFilter === 'pending' && row.verified) return false
-      return true
-    })
-  }, [rows, keyword, statusFilter])
+    return rows.filter((row) => matchesSearchTokens(partnerSearchBlob(row), keyword))
+  }, [rows, keyword])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -73,8 +59,6 @@ export function PartnersPage() {
 
   const handleClear = () => {
     setKeyword('')
-    setStatusFilter('')
-    setExpanded(false)
     setPaginationModel((m) => ({ ...m, page: 0 }))
   }
 
@@ -132,30 +116,10 @@ export function PartnersPage() {
       <InternalDataGridSearchPanel
         keyword={keyword}
         onKeywordChange={setKeyword}
-        expanded={expanded}
-        onExpandedToggle={() => setExpanded((x) => !x)}
         onSubmit={handleSearch}
         onClear={handleClear}
-        onCollapseExpanded={() => setExpanded(false)}
-        searchPlaceholder="Cari nama, email, telepon…"
+        searchPlaceholder="Cari nama, email, telepon, status verifikasi…"
         loading={loading}
-        expandedContent={
-          <TextField
-            select
-            fullWidth
-            size="small"
-            label="Status"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
-          >
-            <MenuItem value="">
-              <em>Semua</em>
-            </MenuItem>
-            <MenuItem value="verified">Terverifikasi</MenuItem>
-            <MenuItem value="pending">Menunggu verifikasi</MenuItem>
-          </TextField>
-        }
       />
 
       <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' }, mb: 2 }}>

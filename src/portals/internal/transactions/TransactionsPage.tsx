@@ -16,17 +16,13 @@ import {
 import DownloadIcon from '@mui/icons-material/Download'
 import { useSearchParams } from 'react-router-dom'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
-import {
-  InternalDataGridSearchPanel,
-  searchPanelSelectSlotProps,
-} from '../../../components/InternalDataGridSearchPanel'
+import { InternalDataGridSearchPanel } from '../../../components/InternalDataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
 import {
   TRANSACTION_CATEGORY_LABELS,
   transactionCategoryLabel,
   type TransactionRow,
   type TransactionCategory,
-  type TransactionType,
 } from '../../../types/transaction'
 import { formatIdr } from '../../../lib/formatIdr'
 import { ManualTransactionDialog } from './ManualTransactionDialog'
@@ -35,17 +31,9 @@ import {
   fetchCompanyDisplayName,
   fetchLedgerRentalMap,
 } from '../../../lib/ledgerPdf'
+import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
-
-const CATEGORY_OPTIONS: TransactionCategory[] = [
-  'rental_income',
-  'gps_topup',
-  'maintenance',
-  'rental_fee',
-  'owner_withdrawal',
-  'other',
-]
 
 type CarOption = {
   id: string
@@ -58,11 +46,15 @@ type CarOption = {
 
 type TransactionGridRow = TransactionRow & { runningBalance: number }
 
-function matchesKeyword(row: TransactionRow, q: string): boolean {
-  if (!q.trim()) return true
-  const s = q.trim().toLowerCase()
-  const blob = `${row.type} ${row.category} ${row.manual_note ?? ''} ${formatIdr(Number(row.amount))}`.toLowerCase()
-  return blob.includes(s)
+function transactionSearchBlob(row: TransactionRow): string {
+  const typeId = row.type === 'income' ? 'pemasukan' : 'pengeluaran'
+  const catLabel = transactionCategoryLabel(row.category)
+  const catId = TRANSACTION_CATEGORY_LABELS[row.category as TransactionCategory] ?? row.category
+  const auto = row.auto_fee
+    ? 'auto otomatis biaya otomatis'
+    : 'manual'
+  const amt = formatIdr(Number(row.amount))
+  return `${row.type} ${typeId} ${row.category} ${catLabel} ${catId} ${row.manual_note ?? ''} ${amt} ${auto}`.toLowerCase()
 }
 
 export function TransactionsPage() {
@@ -81,10 +73,6 @@ export function TransactionsPage() {
   const [feePct, setFeePct] = useState(0)
 
   const [keyword, setKeyword] = useState('')
-  const [expanded, setExpanded] = useState(false)
-  const [typeFilter, setTypeFilter] = useState<'' | TransactionType>('')
-  const [categoryFilter, setCategoryFilter] = useState<'' | TransactionCategory>('')
-  const [autoFeeFilter, setAutoFeeFilter] = useState<'' | 'yes' | 'no'>('')
   const [pdfBusy, setPdfBusy] = useState(false)
 
   const loadCars = useCallback(async () => {
@@ -225,17 +213,9 @@ export function TransactionsPage() {
       : 0
     const nettForPartner = totalIncome - totalExpenseOps - feeRental
 
-    const filtered = out.filter((t) => {
-      if (!matchesKeyword(t, keyword)) return false
-      if (typeFilter && t.type !== typeFilter) return false
-      if (categoryFilter && t.category !== categoryFilter) return false
-      if (autoFeeFilter === 'yes' && !t.auto_fee) return false
-      if (autoFeeFilter === 'no' && t.auto_fee) return false
-      return true
-    })
+    const filtered = out.filter((t) => matchesSearchTokens(transactionSearchBlob(t), keyword))
 
-    const tableFiltersActive =
-      Boolean(keyword.trim()) || Boolean(typeFilter) || Boolean(categoryFilter) || Boolean(autoFeeFilter)
+    const tableFiltersActive = Boolean(keyword.trim())
 
     let runningFiltered: TransactionGridRow[] = []
     if (tableFiltersActive) {
@@ -253,7 +233,7 @@ export function TransactionsPage() {
       filteredGridRows: tableFiltersActive ? runningFiltered : out,
       tableFiltersActive,
     }
-  }, [rows, keyword, typeFilter, categoryFilter, autoFeeFilter, feePct, isPartnerCar])
+  }, [rows, keyword, feePct, isPartnerCar])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -262,10 +242,6 @@ export function TransactionsPage() {
 
   const handleClear = () => {
     setKeyword('')
-    setTypeFilter('')
-    setCategoryFilter('')
-    setAutoFeeFilter('')
-    setExpanded(false)
     setPaginationModel((m) => ({ ...m, page: 0 }))
   }
 
@@ -350,65 +326,10 @@ export function TransactionsPage() {
         <InternalDataGridSearchPanel
           keyword={keyword}
           onKeywordChange={setKeyword}
-          expanded={expanded}
-          onExpandedToggle={() => setExpanded((x) => !x)}
           onSubmit={handleSearch}
           onClear={handleClear}
-          onCollapseExpanded={() => setExpanded(false)}
-          searchPlaceholder="Cari tipe, kategori, jumlah, catatan…"
+          searchPlaceholder="Cari tipe, kategori, jumlah, catatan, auto/manual…"
           loading={loading}
-          expandedContent={
-            <>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                label="Tipe"
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as '' | TransactionType)}
-                slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
-              >
-                <MenuItem value="">
-                  <em>Semua</em>
-                </MenuItem>
-                <MenuItem value="income">Pemasukan</MenuItem>
-                <MenuItem value="expense">Pengeluaran</MenuItem>
-              </TextField>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                label="Kategori"
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value as '' | TransactionCategory)}
-                slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
-              >
-                <MenuItem value="">
-                  <em>Semua</em>
-                </MenuItem>
-                {CATEGORY_OPTIONS.map((c) => (
-                  <MenuItem key={c} value={c}>
-                    {TRANSACTION_CATEGORY_LABELS[c]}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                label="Biaya otomatis"
-                value={autoFeeFilter}
-                onChange={(e) => setAutoFeeFilter(e.target.value as '' | 'yes' | 'no')}
-                slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
-              >
-                <MenuItem value="">
-                  <em>Semua</em>
-                </MenuItem>
-                <MenuItem value="yes">Otomatis saja</MenuItem>
-                <MenuItem value="no">Manual saja</MenuItem>
-              </TextField>
-            </>
-          }
         />
       ) : null}
 

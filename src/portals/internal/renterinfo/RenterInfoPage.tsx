@@ -13,14 +13,12 @@ import {
   Typography,
 } from '@mui/material'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
-import {
-  InternalDataGridSearchPanel,
-  searchPanelSelectSlotProps,
-} from '../../../components/InternalDataGridSearchPanel'
+import { InternalDataGridSearchPanel } from '../../../components/InternalDataGridSearchPanel'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { DangerZone } from '../../../components/DangerZone'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { supabase } from '../../../lib/supabase'
+import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 import type { Tables } from '../../../types/database'
 
 type RenterInfo = Tables<'v2_renter_info'>
@@ -37,11 +35,9 @@ function statusChip(status: string) {
   return <Chip size="small" label="Aktif" color="success" />
 }
 
-function matchesKeyword(row: RenterInfo, q: string): boolean {
-  if (!q.trim()) return true
-  const s = q.trim().toLowerCase()
-  const blob = `${row.name} ${row.phone ?? ''} ${row.notes ?? ''}`.toLowerCase()
-  return blob.includes(s)
+function renterInfoSearchBlob(row: RenterInfo): string {
+  const st = row.status === 'blacklisted' ? 'diblokir blacklisted' : 'aktif active'
+  return `${row.name} ${row.phone ?? ''} ${row.notes ?? ''} ${row.status} ${st}`.toLowerCase()
 }
 
 // ─── FORM DIALOG ─────────────────────────────────────────────────────────────
@@ -211,8 +207,6 @@ export function RenterInfoPage() {
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
   const [keyword, setKeyword] = useState('')
-  const [expanded, setExpanded] = useState(false)
-  const [statusFilter, setStatusFilter] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -233,34 +227,19 @@ export function RenterInfoPage() {
     void load()
   }, [load])
 
-  const [appliedKeyword, setAppliedKeyword] = useState('')
-  const [appliedStatus, setAppliedStatus] = useState('')
-
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
-    setAppliedKeyword(keyword)
-    setAppliedStatus(statusFilter)
     setPaginationModel((m) => ({ ...m, page: 0 }))
   }
 
   function handleClear() {
     setKeyword('')
-    setStatusFilter('')
-    setAppliedKeyword('')
-    setAppliedStatus('')
-    setExpanded(false)
     setPaginationModel((m) => ({ ...m, page: 0 }))
   }
 
   const filtered = useMemo(() => {
-    return rows.filter((r) => {
-      if (appliedStatus && r.status !== appliedStatus) return false
-      if (!matchesKeyword(r, appliedKeyword)) return false
-      return true
-    })
-  }, [rows, appliedKeyword, appliedStatus])
-
-  const collapseExpanded = useCallback(() => setExpanded(false), [])
+    return rows.filter((r) => matchesSearchTokens(renterInfoSearchBlob(r), keyword))
+  }, [rows, keyword])
 
   const columns: GridColDef<RenterInfo>[] = [
     { field: 'name', headerName: 'Nama', flex: 1.2, minWidth: 140 },
@@ -299,29 +278,10 @@ export function RenterInfoPage() {
       <InternalDataGridSearchPanel
         keyword={keyword}
         onKeywordChange={setKeyword}
-        expanded={expanded}
-        onExpandedToggle={() => setExpanded((v) => !v)}
         onSubmit={handleSearch}
         onClear={handleClear}
-        searchPlaceholder="Cari nama, telepon, atau catatan…"
+        searchPlaceholder="Cari nama, telepon, catatan, status…"
         loading={loading}
-        onCollapseExpanded={collapseExpanded}
-        expandedContent={
-          <TextField
-            size="small"
-            label="Status"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            select
-            fullWidth
-            slotProps={{ select: searchPanelSelectSlotProps(collapseExpanded) }}
-          >
-            <MenuItem value="">Semua status</MenuItem>
-            {STATUS_OPTIONS.map((o) => (
-              <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-            ))}
-          </TextField>
-        }
       />
 
       <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>

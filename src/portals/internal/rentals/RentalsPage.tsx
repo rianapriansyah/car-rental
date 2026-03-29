@@ -1,30 +1,71 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import PrintIcon from '@mui/icons-material/Print'
 import {
   Alert,
   Box,
   Chip,
+  FormControl,
+  IconButton,
+  InputLabel,
   MenuItem,
   Paper,
-  TextField,
+  Select,
+  Stack,
+  Tooltip,
   Typography,
 } from '@mui/material'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
-import {
-  InternalDataGridSearchPanel,
-  searchPanelSelectSlotProps,
-} from '../../../components/InternalDataGridSearchPanel'
+import { InternalDataGridSearchPanel } from '../../../components/InternalDataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
 import { formatIdr } from '../../../lib/formatIdr'
 import type { RentalWithCar } from '../../../types/rental'
 import { CompleteRentalDialog } from './CompleteRentalDialog'
+import { RentalReceiptDialog } from './RentalReceiptDialog'
+import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
+type CarOption = { id: string; name: string; plate: string }
+
 const STATUS_LABELS: Record<string, string> = { active: 'Aktif', completed: 'Selesai', cancelled: 'Dibatalkan' }
 
-type CarFilter = { id: string; name: string }
+const MONTH_NAMES_ID = [
+  'Januari',
+  'Februari',
+  'Maret',
+  'April',
+  'Mei',
+  'Juni',
+  'Juli',
+  'Agustus',
+  'September',
+  'Oktober',
+  'November',
+  'Desember',
+] as const
+
+function monthOptionsForYear(year: number) {
+  const now = new Date()
+  const currentMm =
+    now.getFullYear() === year ? String(now.getMonth() + 1).padStart(2, '0') : null
+  return MONTH_NAMES_ID.map((name, i) => {
+    const value = String(i + 1).padStart(2, '0')
+    return {
+      value,
+      label: `${name} ${year}`,
+      isCurrentMonth: currentMm === value,
+    }
+  })
+}
+
+function rentalMatchesCarAndMonth(row: RentalWithCar, carId: string, monthYyyyMm: string): boolean {
+  if (carId && row.car_id !== carId) return false
+  const startMonth = row.start_date.slice(0, 7)
+  if (monthYyyyMm && startMonth !== monthYyyyMm) return false
+  return true
+}
 
 function calcDurationLabel(row: RentalWithCar): string {
   if (row.status === 'cancelled') return '—'
@@ -37,7 +78,8 @@ function calcDurationLabel(row: RentalWithCar): string {
 
 function rentalSearchBlob(row: RentalWithCar): string {
   const car = row.v2_cars ? `${row.v2_cars.name} ${row.v2_cars.plate}` : ''
-  return `${row.renter_name} ${car}`.toLowerCase()
+  const statusLabel = STATUS_LABELS[row.status] ?? row.status
+  return `${row.renter_name} ${car} ${statusLabel} ${row.status}`.toLowerCase()
 }
 
 function completionLabel(row: RentalWithCar): string {
@@ -48,28 +90,32 @@ function completionLabel(row: RentalWithCar): string {
 export function RentalsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const rentalIdParam = searchParams.get('rentalId')
+  const [cars, setCars] = useState<CarOption[]>([])
+  const [carId, setCarId] = useState('')
+  /** '' = semua bulan; '01'…'12' = bulan pada tahun berjalan */
+  const [monthMm, setMonthMm] = useState('')
+  const filterYear = new Date().getFullYear()
+  const scopeMonthYyyyMm = monthMm ? `${filterYear}-${monthMm}` : ''
   const [rows, setRows] = useState<RentalWithCar[]>([])
-  const [cars, setCars] = useState<CarFilter[]>([])
-  const [draftCarFilter, setDraftCarFilter] = useState('')
-  const [draftStatusFilter, setDraftStatusFilter] = useState('')
-  const [appliedCarFilter, setAppliedCarFilter] = useState('')
-  const [appliedStatusFilter, setAppliedStatusFilter] = useState('')
   const [keyword, setKeyword] = useState('')
-  const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [completeRental, setCompleteRental] = useState<RentalWithCar | null>(null)
+  const [receiptRental, setReceiptRental] = useState<RentalWithCar | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
   const loadCars = useCallback(async () => {
     const { data, error: qError } = await supabase
       .from('v2_cars')
-      .select('id, name')
+      .select('id, name, plate')
       .is('deleted_at', null)
       .order('name')
-    if (!qError) {
-      setCars(data ?? [])
+    if (qError) {
+      console.error(qError)
+      return
     }
+    const list = (data ?? []) as CarOption[]
+    setCars(list)
   }, [])
 
   const load = useCallback(async () => {
@@ -78,13 +124,6 @@ export function RentalsPage() {
     let q = supabase.from('v2_rentals').select('*, v2_cars(name, plate)').order('start_date', { ascending: false })
     if (rentalIdParam) {
       q = q.eq('id', rentalIdParam)
-    } else {
-      if (appliedCarFilter) {
-        q = q.eq('car_id', appliedCarFilter)
-      }
-      if (appliedStatusFilter) {
-        q = q.eq('status', appliedStatusFilter)
-      }
     }
     const { data, error: qError } = await q
     setLoading(false)
@@ -93,7 +132,7 @@ export function RentalsPage() {
       return
     }
     setRows((data ?? []) as RentalWithCar[])
-  }, [appliedCarFilter, appliedStatusFilter, rentalIdParam])
+  }, [rentalIdParam])
 
   useEffect(() => {
     void loadCars()
@@ -103,28 +142,24 @@ export function RentalsPage() {
     void load()
   }, [load])
 
-  const statusOptions = useMemo(() => ['active', 'completed', 'cancelled'], [])
+  useEffect(() => {
+    setPaginationModel((m) => ({ ...m, page: 0 }))
+  }, [carId, monthMm])
 
   const filteredRows = useMemo(() => {
-    const q = keyword.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter((row) => rentalSearchBlob(row).includes(q))
-  }, [rows, keyword])
+    const byScope = rentalIdParam
+      ? rows
+      : rows.filter((row) => rentalMatchesCarAndMonth(row, carId, scopeMonthYyyyMm))
+    return byScope.filter((row) => matchesSearchTokens(rentalSearchBlob(row), keyword))
+  }, [rows, carId, scopeMonthYyyyMm, keyword, rentalIdParam])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    setAppliedCarFilter(draftCarFilter)
-    setAppliedStatusFilter(draftStatusFilter)
     setPaginationModel((m) => ({ ...m, page: 0 }))
   }
 
   const handleClear = () => {
     setKeyword('')
-    setDraftCarFilter('')
-    setDraftStatusFilter('')
-    setAppliedCarFilter('')
-    setAppliedStatusFilter('')
-    setExpanded(false)
     setPaginationModel((m) => ({ ...m, page: 0 }))
     setSearchParams({}, { replace: true })
   }
@@ -190,19 +225,37 @@ export function RentalsPage() {
       {
         field: 'actions',
         headerName: 'Aksi',
-        width: 72,
+        width: 104,
         align: 'right',
         headerAlign: 'right',
         sortable: false,
         filterable: false,
         disableColumnMenu: true,
-        renderCell: (params) =>
-          params.row.status === 'active' ? (
-            <DataGridUpdateIconButton
-              title="Selesaikan sewa"
-              onClick={() => setCompleteRental(params.row)}
-            />
-          ) : null,
+        renderCell: (params) => (
+          <Stack direction="row" spacing={0.25} justifyContent="flex-end" sx={{ pr: 0.5 }}>
+            {params.row.status === 'completed' ? (
+              <Tooltip title="Cetak kuitansi">
+                <IconButton
+                  size="small"
+                  aria-label="Cetak kuitansi"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setReceiptRental(params.row)
+                  }}
+                  sx={{ my: 0.5 }}
+                >
+                  <PrintIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            ) : null}
+            {params.row.status === 'active' ? (
+              <DataGridUpdateIconButton
+                title="Selesaikan sewa"
+                onClick={() => setCompleteRental(params.row)}
+              />
+            ) : null}
+          </Stack>
+        ),
       },
     ],
     [],
@@ -220,55 +273,63 @@ export function RentalsPage() {
         </Alert>
       ) : null}
 
-      <InternalDataGridSearchPanel
-        keyword={keyword}
-        onKeywordChange={setKeyword}
-        expanded={expanded}
-        onExpandedToggle={() => setExpanded((x) => !x)}
-        onSubmit={handleSearch}
-        onClear={handleClear}
-        searchPlaceholder="Cari penyewa, kendaraan, plat…"
-        loading={loading}
-        expandedContent={
-          <>
-            <TextField
-              select
-              fullWidth
-              size="small"
+      {!rentalIdParam ? (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2, alignItems: { xs: 'stretch', sm: 'center' } }}>
+          <FormControl sx={{ minWidth: 220, width: { xs: '100%', sm: 220 } }} size="small">
+            <InputLabel id="rental-car-filter">Kendaraan</InputLabel>
+            <Select
+              labelId="rental-car-filter"
               label="Kendaraan"
-              value={draftCarFilter}
-              onChange={(e) => setDraftCarFilter(e.target.value)}
-              slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
+              value={carId}
+              onChange={(e) => setCarId(e.target.value)}
             >
               <MenuItem value="">
-                <em>Semua</em>
+                <em>Semua Kendaraan</em>
               </MenuItem>
               {cars.map((c) => (
                 <MenuItem key={c.id} value={c.id}>
-                  {c.name}
+                  {c.plate ? `${c.name} (${c.plate})` : c.name}
                 </MenuItem>
               ))}
-            </TextField>
-            <TextField
-              select
-              fullWidth
-              size="small"
-              label="Status"
-              value={draftStatusFilter}
-              onChange={(e) => setDraftStatusFilter(e.target.value)}
-              slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
+            </Select>
+          </FormControl>
+          <FormControl sx={{ minWidth: 220, width: { xs: '100%', sm: 220 } }} size="small">
+            <InputLabel id="rental-month-filter">Bulan</InputLabel>
+            <Select
+              labelId="rental-month-filter"
+              label="Bulan"
+              value={monthMm}
+              onChange={(e) => setMonthMm(e.target.value)}
             >
               <MenuItem value="">
-                <em>Semua</em>
+                <em>Semua Bulan</em>
               </MenuItem>
-              {statusOptions.map((s) => (
-                <MenuItem key={s} value={s}>
-                  {STATUS_LABELS[s] ?? s}
+              {monthOptionsForYear(filterYear).map((m) => (
+                <MenuItem
+                  key={m.value}
+                  value={m.value}
+                  sx={m.isCurrentMonth ? { fontWeight: 600 } : undefined}
+                >
+                  {m.label}
+                  {m.isCurrentMonth ? (
+                    <Typography component="span" variant="caption" color="primary" sx={{ ml: 1 }}>
+                      · bulan ini
+                    </Typography>
+                  ) : null}
                 </MenuItem>
               ))}
-            </TextField>
-          </>
-        }
+            </Select>
+          </FormControl>
+        </Box>
+      ) : null}
+
+      <InternalDataGridSearchPanel
+        keyword={keyword}
+        onKeywordChange={setKeyword}
+        onSubmit={handleSearch}
+        onClear={handleClear}
+        searchPlaceholder="Cari penyewa, kendaraan, plat, status…"
+        loading={loading}
       />
 
       {error ? <Alert severity="error">{error}</Alert> : null}
@@ -304,6 +365,11 @@ export function RentalsPage() {
         checkInNote={completeRental?.manual_note}
         onClose={() => setCompleteRental(null)}
         onCompleted={() => void load()}
+      />
+      <RentalReceiptDialog
+        open={receiptRental !== null}
+        rental={receiptRental}
+        onClose={() => setReceiptRental(null)}
       />
     </Box>
   )

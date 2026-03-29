@@ -8,7 +8,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  MenuItem,
   Paper,
   TextField,
   Tooltip,
@@ -16,11 +15,9 @@ import {
 } from '@mui/material'
 import { formatIdr } from '../../../lib/formatIdr'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
-import {
-  InternalDataGridSearchPanel,
-  searchPanelSelectSlotProps,
-} from '../../../components/InternalDataGridSearchPanel'
+import { InternalDataGridSearchPanel } from '../../../components/InternalDataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
+import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
 type SettingRow = {
   key: string
@@ -40,11 +37,9 @@ function formatSettingValue(key: string, raw: string): string {
   return raw
 }
 
-function matchesKeyword(row: SettingRow, q: string): boolean {
-  if (!q.trim()) return true
-  const s = q.trim().toLowerCase()
-  const blob = `${row.key} ${row.description ?? ''} ${row.value}`.toLowerCase()
-  return blob.includes(s)
+function settingSearchBlob(row: SettingRow): string {
+  const fmt = formatSettingValue(row.key, row.value)
+  return `${row.key} ${row.description ?? ''} ${row.value} ${fmt}`.toLowerCase()
 }
 
 /** Keys whose value is stored and edited as a number (see `formatSettingValue`). */
@@ -61,8 +56,6 @@ export function SettingsPage() {
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
   const [keyword, setKeyword] = useState('')
-  const [expanded, setExpanded] = useState(false)
-  const [keyFilter, setKeyFilter] = useState('')
 
   const [addOpen, setAddOpen] = useState(false)
   const [newKey, setNewKey] = useState('')
@@ -148,11 +141,8 @@ export function SettingsPage() {
   }
 
   const filteredDisplayRows = useMemo(() => {
-    return rows.filter((r) => {
-      if (keyFilter && r.key !== keyFilter) return false
-      return matchesKeyword(r, keyword)
-    })
-  }, [rows, keyFilter, keyword])
+    return rows.filter((r) => matchesSearchTokens(settingSearchBlob(r), keyword))
+  }, [rows, keyword])
 
   const gridRows: SettingGridRow[] = useMemo(
     () => filteredDisplayRows.map((r) => ({ ...r, id: r.key })),
@@ -166,8 +156,6 @@ export function SettingsPage() {
 
   const handleClear = () => {
     setKeyword('')
-    setKeyFilter('')
-    setExpanded(false)
     setPaginationModel((m) => ({ ...m, page: 0 }))
   }
 
@@ -259,33 +247,10 @@ export function SettingsPage() {
       <InternalDataGridSearchPanel
         keyword={keyword}
         onKeywordChange={setKeyword}
-        expanded={expanded}
-        onExpandedToggle={() => setExpanded((x) => !x)}
         onSubmit={handleSearch}
         onClear={handleClear}
-        onCollapseExpanded={() => setExpanded(false)}
         searchPlaceholder="Cari kunci, deskripsi, nilai…"
         loading={loading}
-        expandedContent={
-          <TextField
-            select
-            fullWidth
-            size="small"
-            label="Kunci pengaturan"
-            value={keyFilter}
-            onChange={(e) => setKeyFilter(e.target.value)}
-            slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
-          >
-            <MenuItem value="">
-              <em>Semua pengaturan</em>
-            </MenuItem>
-            {rows.map((r) => (
-              <MenuItem key={r.key} value={r.key}>
-                {r.key}
-              </MenuItem>
-            ))}
-          </TextField>
-        }
       />
 
       {error ? <Alert severity="error">{error}</Alert> : null}

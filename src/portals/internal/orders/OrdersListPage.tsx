@@ -1,26 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  Alert,
-  Box,
-  Button,
-  MenuItem,
-  Paper,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { Alert, Box, Button, Paper, Typography } from '@mui/material'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { OrderFormDialog } from './OrderFormDialog'
 import { OrderDetailDialog } from './OrderDetailDialog'
-import {
-  InternalDataGridSearchPanel,
-  searchPanelSelectSlotProps,
-} from '../../../components/InternalDataGridSearchPanel'
+import { InternalDataGridSearchPanel } from '../../../components/InternalDataGridSearchPanel'
 import { V2OrderStatusChip } from '../../../components/V2OrderStatusChip'
 import { supabase } from '../../../lib/supabase'
 import { fetchV2StatusesByType, type V2StatusRow } from '../../../lib/v2StatusHelpers'
 import type { Tables } from '../../../types/database'
 import { useV2RealtimeRefresh } from '../../../hooks/useV2RealtimeRefresh'
+import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
@@ -28,11 +18,11 @@ type OrderRow = Tables<'v2_orders'> & {
   v2_cars: { name: string; plate: string } | null
 }
 
-type CarFilter = { id: string; name: string }
-
-function orderSearchBlob(row: OrderRow): string {
+function orderSearchBlob(row: OrderRow, statusMap: Map<string, V2StatusRow>): string {
   const car = row.v2_cars ? `${row.v2_cars.name} ${row.v2_cars.plate}` : ''
-  return `${row.renter_name} ${row.renter_phone ?? ''} ${car}`.toLowerCase()
+  const st = row.status
+  const stLabel = statusMap.get(st)?.label ?? st
+  return `${row.renter_name} ${row.renter_phone ?? ''} ${car} ${st} ${stLabel}`.toLowerCase()
 }
 
 export function OrdersListPage() {
@@ -40,14 +30,8 @@ export function OrdersListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const detailOrderId = searchParams.get('order')
   const [rows, setRows] = useState<OrderRow[]>([])
-  const [cars, setCars] = useState<CarFilter[]>([])
   const [statusMap, setStatusMap] = useState<Map<string, V2StatusRow>>(new Map())
-  const [draftCarFilter, setDraftCarFilter] = useState('')
-  const [draftStatusFilter, setDraftStatusFilter] = useState('')
-  const [appliedCarFilter, setAppliedCarFilter] = useState('')
-  const [appliedStatusFilter, setAppliedStatusFilter] = useState('')
   const [keyword, setKeyword] = useState('')
-  const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
@@ -62,66 +46,42 @@ export function OrdersListPage() {
     }
   }, [])
 
-  const loadCars = useCallback(async () => {
-    const { data, error: qError } = await supabase
-      .from('v2_cars')
-      .select('id, name')
-      .is('deleted_at', null)
-      .order('name')
-    if (!qError) setCars(data ?? [])
-  }, [])
-
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    let q = supabase
+    const { data, error: qError } = await supabase
       .from('v2_orders')
       .select('*, v2_cars(name, plate)')
       .order('created_at', { ascending: false })
-    if (appliedCarFilter) q = q.eq('car_id', appliedCarFilter)
-    if (appliedStatusFilter) q = q.eq('status', appliedStatusFilter)
-    const { data, error: qError } = await q
     setLoading(false)
     if (qError) {
       setError(qError.message)
       return
     }
     setRows((data ?? []) as OrderRow[])
-  }, [appliedCarFilter, appliedStatusFilter])
+  }, [])
 
   useV2RealtimeRefresh('v2_orders', load)
 
   useEffect(() => {
     void loadStatuses()
-    void loadCars()
-  }, [loadStatuses, loadCars])
+  }, [loadStatuses])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  const statusOptions = useMemo(() => [...statusMap.keys()].sort(), [statusMap])
-
   const filteredRows = useMemo(() => {
-    const q = keyword.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter((row) => orderSearchBlob(row).includes(q))
-  }, [rows, keyword])
+    return rows.filter((row) => matchesSearchTokens(orderSearchBlob(row, statusMap), keyword))
+  }, [rows, keyword, statusMap])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    setAppliedCarFilter(draftCarFilter)
-    setAppliedStatusFilter(draftStatusFilter)
     setPaginationModel((m) => ({ ...m, page: 0 }))
   }
 
   const handleClear = () => {
     setKeyword('')
-    setDraftCarFilter('')
-    setDraftStatusFilter('')
-    setAppliedCarFilter('')
-    setAppliedStatusFilter('')
-    setExpanded(false)
     setPaginationModel((m) => ({ ...m, page: 0 }))
   }
 
@@ -172,52 +132,10 @@ export function OrdersListPage() {
       <InternalDataGridSearchPanel
         keyword={keyword}
         onKeywordChange={setKeyword}
-        expanded={expanded}
-        onExpandedToggle={() => setExpanded((x) => !x)}
         onSubmit={handleSearch}
         onClear={handleClear}
-        searchPlaceholder="Cari penyewa, kendaraan, plat…"
+        searchPlaceholder="Cari penyewa, telepon, kendaraan, plat, status…"
         loading={loading}
-        expandedContent={
-          <>
-            <TextField
-              select
-              fullWidth
-              size="small"
-              label="Kendaraan"
-              value={draftCarFilter}
-              onChange={(e) => setDraftCarFilter(e.target.value)}
-              slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
-            >
-              <MenuItem value="">
-                <em>Semua</em>
-              </MenuItem>
-              {cars.map((c) => (
-                <MenuItem key={c.id} value={c.id}>
-                  {c.name}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              select
-              fullWidth
-              size="small"
-              label="Status"
-              value={draftStatusFilter}
-              onChange={(e) => setDraftStatusFilter(e.target.value)}
-              slotProps={{ select: searchPanelSelectSlotProps(() => setExpanded(false)) }}
-            >
-              <MenuItem value="">
-                <em>Semua</em>
-              </MenuItem>
-              {statusOptions.map((id) => (
-                <MenuItem key={id} value={id}>
-                  {statusMap.get(id)?.label ?? id}
-                </MenuItem>
-              ))}
-            </TextField>
-          </>
-        }
       />
 
       <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' }, mb: 2 }}>
