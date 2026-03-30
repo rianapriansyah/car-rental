@@ -3,18 +3,21 @@ import {
   Alert,
   Box,
   Button,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   FormControl,
   FormControlLabel,
+  IconButton,
   InputLabel,
   MenuItem,
   Select,
   Switch,
   TextField,
 } from '@mui/material'
+import CloseIcon from '@mui/icons-material/Close'
 import { supabase } from '../../../lib/supabase'
 import type { PartnerRow } from '../../../types/partner'
 import type { CarWithPartner } from '../../../types/car'
@@ -36,6 +39,9 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
   const [hasGps, setHasGps] = useState(false)
   const [dailyRate, setDailyRate] = useState('')
   const [photoUrl, setPhotoUrl] = useState('')
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState('')
+  const [uploading, setUploading] = useState(false)
   const [notes, setNotes] = useState('')
   const [partners, setPartners] = useState<PartnerRow[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -52,6 +58,8 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
     setHasGps(initial?.has_gps ?? false)
     setDailyRate(initial?.daily_rate != null ? String(initial.daily_rate) : '')
     setPhotoUrl(initial?.photo_url ?? '')
+    setPhotoFile(null)
+    setPhotoPreview('')
     setNotes(initial?.notes ?? '')
   }, [open, initial])
 
@@ -84,6 +92,24 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
     setSaving(true)
     setError(null)
     const dailyRateValue = dailyRate.trim() === '' ? null : Number(dailyRate)
+    let nextPhotoUrl: string | null = initial?.photo_url ?? null
+    if (photoFile) {
+      setUploading(true)
+      const ext = photoFile.name.includes('.') ? photoFile.name.split('.').pop()?.toLowerCase() : null
+      const path = `vehicles/${Date.now()}.${ext || 'jpg'}`
+      const { error: uploadError } = await supabase.storage
+        .from('vehicle-photos')
+        .upload(path, photoFile, { upsert: true })
+      if (uploadError) {
+        setUploading(false)
+        setSaving(false)
+        setError(uploadError.message)
+        return
+      }
+      const { data } = supabase.storage.from('vehicle-photos').getPublicUrl(path)
+      nextPhotoUrl = data.publicUrl
+      setUploading(false)
+    }
     const payload = {
       name: name.trim(),
       plate: plate.trim(),
@@ -91,7 +117,7 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
       partner_id: ownershipType === 'partner' && partnerId ? partnerId : null,
       has_gps: hasGps,
       daily_rate: dailyRateValue != null && Number.isFinite(dailyRateValue) ? dailyRateValue : null,
-      photo_url: photoUrl.trim() || null,
+      photo_url: photoFile ? nextPhotoUrl : initial ? initial.photo_url : null,
       notes: notes.trim() || null,
     }
 
@@ -231,14 +257,50 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
               slotProps={{ htmlInput: { min: 0 } }}
             />
           </Box>
-          <TextField
-            size="small"
-            label="URL Foto"
-            value={photoUrl}
-            onChange={(e) => setPhotoUrl(e.target.value)}
-            fullWidth
-            sx={{ mb: 2 }}
-          />
+          <Box sx={{ mb: 2 }}>
+            <Button component="label" variant="outlined" fullWidth>
+              {photoFile ? photoFile.name : 'Upload Foto'}
+              <input
+                hidden
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null
+                  setPhotoFile(file)
+                  setPhotoPreview(file ? URL.createObjectURL(file) : '')
+                }}
+              />
+            </Button>
+            {photoPreview ? (
+              <Box sx={{ position: 'relative', mt: 1 }}>
+                <img
+                  src={photoPreview}
+                  alt="Preview foto kendaraan"
+                  style={{
+                    width: '100%',
+                    maxHeight: '160px',
+                    objectFit: 'cover',
+                    borderRadius: '8px',
+                  }}
+                />
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    setPhotoFile(null)
+                    setPhotoPreview('')
+                  }}
+                  sx={{
+                    position: 'absolute',
+                    top: 6,
+                    right: 6,
+                    bgcolor: 'background.paper',
+                  }}
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            ) : null}
+          </Box>
           <TextField
             size="small"
             label="Catatan"
@@ -253,8 +315,8 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
           <Button onClick={handleClose} disabled={saving}>
             Batal
           </Button>
-          <Button variant="contained" onClick={() => void handleSave()} disabled={saving}>
-            {saving ? 'Menyimpan…' : 'Simpan'}
+          <Button variant="contained" onClick={() => void handleSave()} disabled={saving || uploading}>
+            {uploading ? <CircularProgress size={18} color="inherit" /> : saving ? 'Menyimpan…' : 'Simpan'}
           </Button>
         </DialogActions>
         {initial && !initial.deleted_at ? (

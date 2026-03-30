@@ -422,7 +422,6 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const [overtimeRate, setOvertimeRate] = useState(25000)
   const [selectedId, setSelectedId] = useState('')
   const [gross, setGross] = useState('')
-  const [useCurrentTime, setUseCurrentTime] = useState(true)
   const [endDate, setEndDate] = useState<Dayjs | null>(dayjs())
   const [endTime, setEndTime] = useState<Dayjs | null>(dayjs())
   const [checkOutNote, setCheckOutNote] = useState('')
@@ -431,12 +430,6 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [now, setNow] = useState(() => dayjs())
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(dayjs()), 60_000)
-    return () => clearInterval(id)
-  }, [])
 
   useEffect(() => {
     void supabase
@@ -468,10 +461,9 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const downPayment = Number(selected?.down_payment ?? 0)
   const checkInNote = selected?.manual_note ?? ''
   const completionMoment = useMemo<Dayjs | null>(() => {
-    if (useCurrentTime) return now
     if (!endDate || !endTime) return null
     return dayjs(`${endDate.format('YYYY-MM-DD')}T${endTime.format('HH:mm')}`)
-  }, [useCurrentTime, now, endDate, endTime])
+  }, [endDate, endTime])
 
   const costBreakdown = useMemo<CostBreakdown | null>(() => {
     if (!selected?.start_date) return null
@@ -500,21 +492,16 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     setSuccess(null)
 
     const completionAt =
-      useCurrentTime
+      endDate && endTime
         ? {
-            endDate: dayjs().format('YYYY-MM-DD'),
-            endTime: dayjs().format('HH:mm'),
+            endDate: endDate.format('YYYY-MM-DD'),
+            endTime: endTime.format('HH:mm'),
           }
-        : endDate && endTime
-          ? {
-              endDate: endDate.format('YYYY-MM-DD'),
-              endTime: endTime.format('HH:mm'),
-            }
-          : null
+        : null
 
     if (!completionAt) {
       setBusy(false)
-      setError('Tanggal dan jam selesai wajib diisi jika Waktu Saat Ini dimatikan.')
+      setError('Tanggal dan jam selesai wajib diisi.')
       return
     }
 
@@ -579,7 +566,6 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     setSuccess(`${label} selesai. Total: ${formatIdr(totalGrossIncome)}.`)
     setSelectedId('')
     setGross('')
-    setUseCurrentTime(true)
     setEndDate(dayjs())
     setEndTime(dayjs())
     setCheckOutNote('')
@@ -603,7 +589,6 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
           onChange={(e) => {
             setSelectedId(e.target.value)
             setGross('')
-            setUseCurrentTime(true)
             setEndDate(dayjs())
             setEndTime(dayjs())
             setCheckOutNote('')
@@ -718,24 +703,12 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         </Typography>
       ) : null}
 
-      <FormControlLabel
-        control={
-          <Switch
-            checked={useCurrentTime}
-            onChange={(_, v) => setUseCurrentTime(v)}
-            size="small"
-            disabled={!selectedId}
-          />
-        }
-        label="Waktu Saat Ini"
-      />
-
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
         <DatePicker
           label="Tanggal selesai"
           value={endDate}
           onChange={(v) => setEndDate(v)}
-          disabled={!selectedId || useCurrentTime}
+          disabled={!selectedId}
           slotProps={{ textField: { fullWidth: true, size: 'small' } }}
         />
         <TimePicker
@@ -743,7 +716,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
           value={endTime}
           onChange={(v) => setEndTime(v)}
           ampm={false}
-          disabled={!selectedId || useCurrentTime}
+          disabled={!selectedId}
           slotProps={{ textField: { fullWidth: true, size: 'small' } }}
         />
       </Box>
