@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, Box, Button, Paper, Typography } from '@mui/material'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { OrderFormDialog } from './OrderFormDialog'
 import { OrderDetailDialog } from './OrderDetailDialog'
 import { InternalDataGridSearchPanel } from '../../../components/InternalDataGridSearchPanel'
 import { V2OrderStatusChip } from '../../../components/V2OrderStatusChip'
+import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { supabase } from '../../../lib/supabase'
 import { fetchV2StatusesByType, type V2StatusRow } from '../../../lib/v2StatusHelpers'
 import type { Tables } from '../../../types/database'
@@ -27,8 +28,6 @@ function orderSearchBlob(row: OrderRow, statusMap: Map<string, V2StatusRow>): st
 
 export function OrdersListPage() {
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const detailOrderId = searchParams.get('order')
   const [rows, setRows] = useState<OrderRow[]>([])
   const [statusMap, setStatusMap] = useState<Map<string, V2StatusRow>>(new Map())
   const [keyword, setKeyword] = useState('')
@@ -36,6 +35,7 @@ export function OrdersListPage() {
   const [error, setError] = useState<string | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
   const [orderFormOpen, setOrderFormOpen] = useState(false)
+  const [detailOrderId, setDetailOrderId] = useState<string | null>(null)
 
   const loadStatuses = useCallback(async () => {
     try {
@@ -119,6 +119,22 @@ export function OrdersListPage() {
         width: 110,
         valueGetter: (_v, row) => (row.deposit_paid ? 'Ya' : 'Tidak'),
       },
+      {
+        field: 'actions',
+        headerName: 'Aksi',
+        width: 72,
+        align: 'right',
+        headerAlign: 'right',
+        sortable: false,
+        filterable: false,
+        disableColumnMenu: true,
+        renderCell: (params) => (
+          <DataGridUpdateIconButton
+            title="Detail"
+            onClick={() => setDetailOrderId(String(params.id))}
+          />
+        ),
+      },
     ],
     [statusMap],
   )
@@ -171,14 +187,7 @@ export function OrdersListPage() {
             pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
             disableRowSelectionOnClick
             autoHeight
-            sx={{ border: 'none', cursor: 'pointer' }}
-            onRowClick={(p) =>
-              setSearchParams((prev) => {
-                const next = new URLSearchParams(prev)
-                next.set('order', String(p.id))
-                return next
-              })
-            }
+            sx={{ border: 'none' }}
           />
         </Paper>
       )}
@@ -189,24 +198,14 @@ export function OrdersListPage() {
         onSaved={(orderId) => {
           setOrderFormOpen(false)
           void load()
-          setSearchParams((prev) => {
-            const next = new URLSearchParams(prev)
-            next.set('order', orderId)
-            return next
-          })
+          setDetailOrderId(orderId)
         }}
       />
 
       <OrderDetailDialog
-        open={detailOrderId != null && detailOrderId !== ''}
+        open={detailOrderId != null}
         orderId={detailOrderId}
-        onClose={() => {
-          setSearchParams((prev) => {
-            const next = new URLSearchParams(prev)
-            next.delete('order')
-            return next
-          })
-        }}
+        onClose={() => setDetailOrderId(null)}
         onOrderUpdated={() => void load()}
         onActivated={(rentalId) =>
           navigate(`/internal/rentals?rentalId=${encodeURIComponent(rentalId)}`)

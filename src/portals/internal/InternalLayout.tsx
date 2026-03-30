@@ -18,7 +18,7 @@ import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { InternalAppearanceBar } from '../../components/InternalAppearanceBar'
 import { useAuth } from '../../contexts/AuthContext'
-import { isAdminUser } from '../../lib/authRole'
+import { isInternalStaffUser } from '../../lib/authRole'
 
 const DRAWER_WIDTH = 260
 
@@ -37,14 +37,14 @@ const ADMIN_NAV = [
 
 function NavList({
   pathname,
-  isAdmin,
+  isStaff,
   onNavigate,
 }: {
   pathname: string
-  isAdmin: boolean
+  isStaff: boolean
   onNavigate?: () => void
 }) {
-  const items = isAdmin ? [...HOME_NAV, ...ADMIN_NAV] : HOME_NAV
+  const items = isStaff ? [...HOME_NAV, ...ADMIN_NAV] : HOME_NAV
   return (
     <List disablePadding sx={{ pt: 1 }}>
       {items.map((item) => {
@@ -69,7 +69,7 @@ function NavList({
 export function InternalLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { user, signOut } = useAuth()
-  const isAdmin = user ? isAdminUser(user) : false
+  const isStaff = user ? isInternalStaffUser(user) : false
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
@@ -136,7 +136,7 @@ export function InternalLayout() {
             },
           }}
         >
-          <NavList pathname={pathname} isAdmin={isAdmin} onNavigate={closeDrawer} />
+          <NavList pathname={pathname} isStaff={isStaff} onNavigate={closeDrawer} />
         </Drawer>
 
         <Box

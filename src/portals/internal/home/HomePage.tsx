@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -8,6 +11,9 @@ import {
   Chip,
   CircularProgress,
   Divider,
+  List,
+  ListItem,
+  ListItemText,
   Table,
   TableBody,
   TableCell,
@@ -16,6 +22,7 @@ import {
   Typography,
 } from '@mui/material'
 import DownloadIcon from '@mui/icons-material/Download'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import { Link as RouterLink } from 'react-router-dom'
 import { useTheme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
@@ -32,7 +39,8 @@ import {
 import { ResponsiveTableContainer } from '../../../components/ResponsiveTableContainer'
 import { supabase } from '../../../lib/supabase'
 import { useAuth } from '../../../contexts/AuthContext'
-import { isAdminUser } from '../../../lib/authRole'
+import { isInternalStaffUser } from '../../../lib/authRole'
+import { computePartnerRentalFeeForTransactions } from '../../../lib/partnerRentalFee'
 import { usePartnerProfile } from '../../../hooks/usePartnerProfile'
 import type { CarWithPartner } from '../../../types/car'
 import type { TransactionRow } from '../../../types/transaction'
@@ -61,14 +69,15 @@ export function HomePage() {
   const theme = useTheme()
   const isSmDown = useMediaQuery(theme.breakpoints.down('sm'))
   const { user } = useAuth()
-  const isAdmin = user ? isAdminUser(user) : false
-  const { partner, loading: partnerLoading } = usePartnerProfile(isAdmin ? undefined : user?.id)
+  const isStaff = user ? isInternalStaffUser(user) : false
+  const { partner, loading: partnerLoading } = usePartnerProfile(isStaff ? undefined : user?.id)
   const [cars, setCars] = useState<CarWithPartner[]>([])
   const [txByCar, setTxByCar] = useState<Record<string, TransactionRow[]>>({})
   const [summaryRows, setSummaryRows] = useState<LedgerSummaryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pdfBusyCarId, setPdfBusyCarId] = useState<string | null>(null)
+  const [feePct, setFeePct] = useState(0)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -133,12 +142,32 @@ export function HomePage() {
   }, [])
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isStaff) {
       void load()
     } else if (!partnerLoading && partner) {
       void load()
     }
-  }, [isAdmin, partner, partnerLoading, load])
+  }, [isStaff, partner, partnerLoading, load])
+
+  useEffect(() => {
+    void (async () => {
+      const { data: rentalKey } = await supabase
+        .from('v2_app_settings')
+        .select('value')
+        .eq('key', 'rental_fee_pct')
+        .maybeSingle()
+      if (rentalKey?.value) {
+        setFeePct(Number(rentalKey.value))
+        return
+      }
+      const { data: legacy } = await supabase
+        .from('v2_app_settings')
+        .select('value')
+        .eq('key', 'partner_fee_pct')
+        .maybeSingle()
+      if (legacy?.value) setFeePct(Number(legacy.value))
+    })()
+  }, [])
 
   async function handleDownloadMonthLedger(car: CarWithPartner) {
     const month = currentMonthYyyyMm()
@@ -168,6 +197,28 @@ export function HomePage() {
     }
   }
 
+  const monthRevenueBreakdown = useMemo(() => {
+    const month = currentMonthYyyyMm()
+    let fromRentalOwned = 0
+    let fromRentalFee = 0
+    for (const car of cars) {
+      const txs = filterTransactionsByMonth(txByCar[car.id] ?? [], month)
+      if (car.ownership_type === 'partner') {
+        fromRentalFee += computePartnerRentalFeeForTransactions(txs, feePct)
+      } else {
+        for (const t of txs) {
+          if (t.type === 'income') fromRentalOwned += Number(t.amount)
+        }
+      }
+    }
+    const total = fromRentalOwned + fromRentalFee
+    const monthLabel = new Date(`${month}-01T12:00:00`).toLocaleString('id-ID', {
+      month: 'long',
+      year: 'numeric',
+    })
+    return { month, monthLabel, total, fromRentalOwned, fromRentalFee }
+  }, [cars, txByCar, feePct])
+
   const chartData = useMemo(() => {
     const byMonth = new Map<string, { month: string; income: number; expense: number }>()
     for (const row of summaryRows) {
@@ -186,7 +237,7 @@ export function HomePage() {
       }))
   }, [summaryRows])
 
-  if (!isAdmin && (partnerLoading || !partner)) {
+  if (!isStaff && (partnerLoading || !partner)) {
     return (
       <Box display="flex" justifyContent="center" py={4}>
         <CircularProgress />
@@ -194,7 +245,7 @@ export function HomePage() {
     )
   }
 
-  const title = isAdmin
+  const title = isStaff
     ? 'Semua Kendaraan'
     : partner
       ? `Kendaraan: ${partner.name}`
@@ -262,6 +313,51 @@ export function HomePage() {
             </CardContent>
           </Card>
 
+          {isStaff ? (
+            <Accordion
+              disableGutters
+              elevation={0}
+              sx={{
+                mb: 3,
+                border: 1,
+                borderColor: 'divider',
+                borderRadius: 1,
+                '&:before': { display: 'none' },
+              }}
+            >
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={600}>
+                    Rincian pendapatan bulan berjalan ({monthRevenueBreakdown.monthLabel})
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Total: {formatIdr(monthRevenueBreakdown.total)}
+                  </Typography>
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails>
+                <List dense disablePadding>
+                  <ListItem disableGutters sx={{ py: 0.5, alignItems: 'flex-start' }}>
+                    <ListItemText
+                      primary="Dari sewa kendaraan milik perusahaan"
+                      secondary={formatIdr(monthRevenueBreakdown.fromRentalOwned)}
+                      primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
+                      secondaryTypographyProps={{ variant: 'body2' }}
+                    />
+                  </ListItem>
+                  <ListItem disableGutters sx={{ py: 0.5, alignItems: 'flex-start' }}>
+                    <ListItemText
+                      primary="Dari fee rental (kendaraan mitra)"
+                      secondary={formatIdr(monthRevenueBreakdown.fromRentalFee)}
+                      primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
+                      secondaryTypographyProps={{ variant: 'body2' }}
+                    />
+                  </ListItem>
+                </List>
+              </AccordionDetails>
+            </Accordion>
+          ) : null}
+
           {cars.map((car) => {
             const txs = txByCar[car.id] ?? []
             let bal = 0
@@ -274,6 +370,12 @@ export function HomePage() {
               .slice(startIdx)
               .map((t, j) => ({ t, runningIdx: startIdx + j }))
               .reverse()
+            const month = currentMonthYyyyMm()
+            const monthTxs = filterTransactionsByMonth(txs, month)
+            const partnerFeeThisMonth =
+              isStaff && car.ownership_type === 'partner'
+                ? computePartnerRentalFeeForTransactions(monthTxs, feePct)
+                : null
             return (
               <Card key={car.id} sx={{ mb: 2, overflow: 'hidden' }}>
                 <CardContent sx={{ px: { xs: 1.5, sm: 2 } }}>
@@ -287,6 +389,14 @@ export function HomePage() {
                     sx={{ wordBreak: 'break-word' }}
                   >
                     {car.plate} · Saldo: {formatIdr(bal)}
+                    {partnerFeeThisMonth != null ? (
+                      <>
+                        {' · '}
+                        <Box component="span" sx={{ color: 'text.primary' }}>
+                          Fee rental (bulan ini): {formatIdr(partnerFeeThisMonth)}
+                        </Box>
+                      </>
+                    ) : null}
                   </Typography>
                   <Divider sx={{ my: 2 }} />
                   {txs.length === 0 ? (

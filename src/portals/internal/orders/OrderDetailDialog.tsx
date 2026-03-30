@@ -192,34 +192,24 @@ export function OrderDetailDialog({
             </>
           )}
         </DialogContent>
-        <DialogActions
-          sx={{
-            px: 3,
-            pb: 2,
-            flexWrap: 'wrap',
-            gap: 1,
-            justifyContent: 'space-between',
-          }}
-        >
-          <Button onClick={handleClose} disabled={busy}>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button onClick={handleClose} disabled={busy} sx={{ mr: 'auto' }}>
             Tutup
           </Button>
           {row && !loading ? (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'flex-end' }}>
+            <>
               {canCancel ? (
                 <Button variant="outlined" color="error" onClick={() => setCancelOpen(true)} disabled={busy}>
-                  Batalkan pesanan
+                  Pembatalan
                 </Button>
               ) : null}
               {canActivate ? (
                 <Button variant="contained" onClick={() => void handleActivate()} disabled={busy}>
-                  Aktifkan menjadi sewa
+                  Aktifkan
                 </Button>
               ) : null}
-            </Box>
-          ) : (
-            <span />
-          )}
+            </>
+          ) : null}
         </DialogActions>
       </Dialog>
 

@@ -1,16 +1,16 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Alert, Box, CircularProgress, Container, Paper, Typography } from '@mui/material'
 import { useAuth } from '../../contexts/AuthContext'
-import { isAdminUser } from '../../lib/authRole'
+import { isInternalStaffUser } from '../../lib/authRole'
 import { usePartnerProfile } from '../../hooks/usePartnerProfile'
 
 export function AuthenticatedRoute() {
   const { user, loading: authLoading } = useAuth()
-  const isAdmin = user ? isAdminUser(user) : false
-  const { partner, loading: partnerLoading } = usePartnerProfile(isAdmin ? undefined : user?.id)
+  const isStaff = user ? isInternalStaffUser(user) : false
+  const { partner, loading: partnerLoading } = usePartnerProfile(isStaff ? undefined : user?.id)
   const location = useLocation()
 
-  if (authLoading || (!isAdmin && user && partnerLoading)) {
+  if (authLoading || (!isStaff && user && partnerLoading)) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="40vh">
         <CircularProgress />
@@ -22,7 +22,7 @@ export function AuthenticatedRoute() {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
-  if (!isAdmin) {
+  if (!isStaff) {
     if (!partner) {
       return <Navigate to="/login" replace state={{ from: location.pathname }} />
     }

@@ -1,15 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import PrintIcon from '@mui/icons-material/Print'
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'
 import GlobalStyles from '@mui/material/GlobalStyles'
 import {
   Box,
   Button,
+  ButtonGroup,
   Chip,
+  ClickAwayListener,
   Dialog,
   DialogActions,
   DialogContent,
   Divider,
+  Grow,
+  MenuItem,
+  MenuList,
+  Paper,
+  Popper,
   Typography,
 } from '@mui/material'
 import type { RentalWithCar } from '../../../types/rental'
@@ -59,6 +67,8 @@ function summaryCard(label: string, value: string) {
 
 export function RentalReceiptDialog({ open, rental, onClose }: Props) {
   const [companyName, setCompanyName] = useState('')
+  const [splitOpen, setSplitOpen] = useState(false)
+  const splitAnchorRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -235,25 +245,57 @@ export function RentalReceiptDialog({ open, rental, onClose }: Props) {
           sx={{
             px: 3,
             pb: 2,
-            flexWrap: 'wrap',
             gap: 1,
+            justifyContent: 'space-between',
             '@media print': { display: 'none' },
           }}
         >
-          <Button onClick={onClose}>Tutup</Button>
-          <Button
-            variant="outlined"
-            startIcon={<PictureAsPdfIcon />}
-            onClick={() => {
-              downloadRentalReceiptPdf(rental, companyName)
-              onClose()
-            }}
-          >
-            Simpan PDF
-          </Button>
-          <Button variant="contained" startIcon={<PrintIcon />} onClick={() => window.print()}>
-            Cetak kuitansi
-          </Button>
+          <Button onClick={onClose}>Batal</Button>
+          <Box>
+            <ButtonGroup variant="contained" ref={splitAnchorRef}>
+              <Button startIcon={<PrintIcon />} onClick={() => window.print()}>
+                Cetak kuitansi
+              </Button>
+              <Button
+                size="small"
+                aria-label="Pilih aksi kuitansi"
+                aria-haspopup="menu"
+                aria-expanded={splitOpen}
+                onClick={() => setSplitOpen((prev) => !prev)}
+              >
+                <ArrowDropDownIcon />
+              </Button>
+            </ButtonGroup>
+            <Popper
+              open={splitOpen}
+              anchorEl={splitAnchorRef.current}
+              transition
+              disablePortal
+              placement="top-end"
+              sx={{ zIndex: 1400 }}
+            >
+              {({ TransitionProps }) => (
+                <Grow {...TransitionProps} style={{ transformOrigin: 'right bottom' }}>
+                  <Paper elevation={3}>
+                    <ClickAwayListener onClickAway={() => setSplitOpen(false)}>
+                      <MenuList autoFocusItem dense>
+                        <MenuItem
+                          onClick={() => {
+                            setSplitOpen(false)
+                            downloadRentalReceiptPdf(rental, companyName)
+                            onClose()
+                          }}
+                        >
+                          <PictureAsPdfIcon fontSize="small" sx={{ mr: 1.5 }} />
+                          Simpan PDF
+                        </MenuItem>
+                      </MenuList>
+                    </ClickAwayListener>
+                  </Paper>
+                </Grow>
+              )}
+            </Popper>
+          </Box>
         </DialogActions>
       </Dialog>
     </>

@@ -32,6 +32,7 @@ import {
   fetchLedgerRentalMap,
 } from '../../../lib/ledgerPdf'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
+import { computePartnerRentalFeeForTransactions } from '../../../lib/partnerRentalFee'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
@@ -186,8 +187,7 @@ export function TransactionsPage() {
     let b = 0
     const out: TransactionGridRow[] = []
     let totalIncome = 0
-    let totalExpenseOps = 0   // all expenses except rental_fee (GPS, maintenance, etc.)
-    let totalRentalFee = 0   // auto-recorded rental_fee entries (legacy: partner_fee)
+    let totalExpenseOps = 0 // expenses except rental_fee (GPS, maintenance, etc.)
 
     for (const t of rows) {
       const amt = Number(t.amount)
@@ -197,20 +197,12 @@ export function TransactionsPage() {
 
       if (t.type === 'income') {
         totalIncome += amt
-      } else if (t.category === 'rental_fee' || t.category === 'partner_fee') {
-        totalRentalFee += amt
-      } else {
+      } else if (t.category !== 'rental_fee' && t.category !== 'partner_fee') {
         totalExpenseOps += amt
       }
     }
 
-    // For partner-owned cars: use recorded rental_fee rows if present, otherwise calculate.
-    // For rental-owned cars: no management fee applies.
-    const feeRental = isPartnerCar
-      ? (totalRentalFee > 0
-          ? totalRentalFee
-          : Math.round((totalIncome - totalExpenseOps) * feePct / 100))
-      : 0
+    const feeRental = isPartnerCar ? computePartnerRentalFeeForTransactions(rows, feePct) : 0
     const nettForPartner = totalIncome - totalExpenseOps - feeRental
 
     const filtered = out.filter((t) => matchesSearchTokens(transactionSearchBlob(t), keyword))

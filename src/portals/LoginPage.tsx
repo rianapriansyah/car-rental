@@ -13,7 +13,7 @@ import {
 import { Link as RouterLink, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { isAdminUser } from '../lib/authRole'
+import { isInternalStaffUser } from '../lib/authRole'
 import { isAdminBootstrapEnabled } from '../lib/bootstrapAdmin'
 
 export function LoginPage() {
@@ -53,7 +53,7 @@ export function LoginPage() {
   if (user) {
     return (
       <Navigate
-        to={isAdminUser(user) ? (from ?? '/internal/in-out') : (from ?? '/internal/home')}
+        to={isInternalStaffUser(user) ? (from ?? '/internal/in-out') : (from ?? '/internal/home')}
         replace
       />
     )
@@ -84,7 +84,7 @@ export function LoginPage() {
 
     // Admin — set destination and keep spinner.
     // The effect above will call navigate() once onAuthStateChange updates user.
-    if (isAdminUser(data.user)) {
+    if (isInternalStaffUser(data.user)) {
       setDestination(from ?? '/internal/in-out')
       return
     }
