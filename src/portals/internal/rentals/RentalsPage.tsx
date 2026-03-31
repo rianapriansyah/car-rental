@@ -1,21 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import dayjs from 'dayjs'
 import { useSearchParams } from 'react-router-dom'
 import PrintIcon from '@mui/icons-material/Print'
 import {
   Alert,
   Box,
   Chip,
-  FormControl,
   IconButton,
-  InputLabel,
-  MenuItem,
   Paper,
-  Select,
   Stack,
   Tooltip,
   Typography,
 } from '@mui/material'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
+import { InternalCarMonthFilter } from '../../../components/InternalCarMonthFilter'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { InternalDataGridSearchPanel } from '../../../components/InternalDataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
@@ -30,35 +28,6 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 type CarOption = { id: string; name: string; plate: string }
 
 const STATUS_LABELS: Record<string, string> = { active: 'Aktif', completed: 'Selesai', cancelled: 'Dibatalkan' }
-
-const MONTH_NAMES_ID = [
-  'Januari',
-  'Februari',
-  'Maret',
-  'April',
-  'Mei',
-  'Juni',
-  'Juli',
-  'Agustus',
-  'September',
-  'Oktober',
-  'November',
-  'Desember',
-] as const
-
-function monthOptionsForYear(year: number) {
-  const now = new Date()
-  const currentMm =
-    now.getFullYear() === year ? String(now.getMonth() + 1).padStart(2, '0') : null
-  return MONTH_NAMES_ID.map((name, i) => {
-    const value = String(i + 1).padStart(2, '0')
-    return {
-      value,
-      label: `${name} ${year}`,
-      isCurrentMonth: currentMm === value,
-    }
-  })
-}
 
 function rentalMatchesCarAndMonth(row: RentalWithCar, carId: string, monthYyyyMm: string): boolean {
   if (carId && row.car_id !== carId) return false
@@ -92,10 +61,8 @@ export function RentalsPage() {
   const rentalIdParam = searchParams.get('rentalId')
   const [cars, setCars] = useState<CarOption[]>([])
   const [carId, setCarId] = useState('')
-  /** '' = semua bulan; '01'…'12' = bulan pada tahun berjalan */
-  const [monthMm, setMonthMm] = useState('')
-  const filterYear = new Date().getFullYear()
-  const scopeMonthYyyyMm = monthMm ? `${filterYear}-${monthMm}` : ''
+  const [month, setMonth] = useState(() => dayjs().startOf('month'))
+  const scopeMonthYyyyMm = month.format('YYYY-MM')
   const [rows, setRows] = useState<RentalWithCar[]>([])
   const [keyword, setKeyword] = useState('')
   const [loading, setLoading] = useState(true)
@@ -144,7 +111,7 @@ export function RentalsPage() {
 
   useEffect(() => {
     setPaginationModel((m) => ({ ...m, page: 0 }))
-  }, [carId, monthMm])
+  }, [carId, month])
 
   const filteredRows = useMemo(() => {
     const byScope = rentalIdParam
@@ -274,53 +241,14 @@ export function RentalsPage() {
       ) : null}
 
       {!rentalIdParam ? (
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2, alignItems: { xs: 'stretch', sm: 'center' } }}>
-          <FormControl sx={{ minWidth: 220, width: { xs: '100%', sm: 220 } }} size="small">
-            <InputLabel id="rental-car-filter">Kendaraan</InputLabel>
-            <Select
-              labelId="rental-car-filter"
-              label="Kendaraan"
-              value={carId}
-              onChange={(e) => setCarId(e.target.value)}
-            >
-              <MenuItem value="">
-                <em>Semua Kendaraan</em>
-              </MenuItem>
-              {cars.map((c) => (
-                <MenuItem key={c.id} value={c.id}>
-                  {c.plate ? `${c.name} (${c.plate})` : c.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl sx={{ minWidth: 220, width: { xs: '100%', sm: 220 } }} size="small">
-            <InputLabel id="rental-month-filter">Bulan</InputLabel>
-            <Select
-              labelId="rental-month-filter"
-              label="Bulan"
-              value={monthMm}
-              onChange={(e) => setMonthMm(e.target.value)}
-            >
-              <MenuItem value="">
-                <em>Semua Bulan</em>
-              </MenuItem>
-              {monthOptionsForYear(filterYear).map((m) => (
-                <MenuItem
-                  key={m.value}
-                  value={m.value}
-                  sx={m.isCurrentMonth ? { fontWeight: 600 } : undefined}
-                >
-                  {m.label}
-                  {m.isCurrentMonth ? (
-                    <Typography component="span" variant="caption" color="primary" sx={{ ml: 1 }}>
-                      · bulan ini
-                    </Typography>
-                  ) : null}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Box>
+        <InternalCarMonthFilter
+          cars={cars}
+          carId={carId}
+          onCarIdChange={setCarId}
+          month={month}
+          onMonthChange={setMonth}
+          allowAllCars
+        />
       ) : null}
 
       <InternalDataGridSearchPanel

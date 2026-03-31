@@ -172,6 +172,7 @@ export function OrderDetailDialog({
               <DetailField label="Nama penyewa" value={row.renter_name} />
               <DetailField label="Telepon" value={row.renter_phone ?? '—'} />
               <DetailField label="Mulai" value={row.start_date} />
+              <DetailField label="Jam mulai" value={row.start_time ?? '—'} />
               <DetailField label="Selesai" value={row.end_date} />
               <DetailField label="Durasi (hari)" value={row.duration_days != null ? String(row.duration_days) : '—'} />
               <DetailField

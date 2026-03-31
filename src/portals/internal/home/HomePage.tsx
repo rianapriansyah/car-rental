@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import dayjs from 'dayjs'
+import type { Dayjs } from 'dayjs'
 import {
   Accordion,
   AccordionDetails,
@@ -36,6 +38,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { ResponsiveTableContainer } from '../../../components/ResponsiveTableContainer'
 import { supabase } from '../../../lib/supabase'
 import { useAuth } from '../../../contexts/AuthContext'
@@ -78,6 +81,7 @@ export function HomePage() {
   const [error, setError] = useState<string | null>(null)
   const [pdfBusyCarId, setPdfBusyCarId] = useState<string | null>(null)
   const [feePct, setFeePct] = useState(0)
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthYyyyMm())
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -170,8 +174,8 @@ export function HomePage() {
   }, [])
 
   async function handleDownloadMonthLedger(car: CarWithPartner) {
-    const month = currentMonthYyyyMm()
-    const txs = filterTransactionsByMonth(txByCar[car.id] ?? [], month)
+    const month = selectedMonth
+    const txs = filterTransactionsByMonth(txByCar[car.id] ?? [], selectedMonth)
     setPdfBusyCarId(car.id)
     try {
       const rentalIds = txs.map((t) => t.rental_id).filter(Boolean) as string[]
@@ -197,8 +201,17 @@ export function HomePage() {
     }
   }
 
+  const selectedMonthLabel = useMemo(
+    () =>
+      dayjs(`${selectedMonth}-01`).toDate().toLocaleString('id-ID', {
+        month: 'long',
+        year: 'numeric',
+      }),
+    [selectedMonth],
+  )
+
   const monthRevenueBreakdown = useMemo(() => {
-    const month = currentMonthYyyyMm()
+    const month = selectedMonth
     let fromRentalOwned = 0
     let fromRentalFee = 0
     for (const car of cars) {
@@ -212,12 +225,12 @@ export function HomePage() {
       }
     }
     const total = fromRentalOwned + fromRentalFee
-    const monthLabel = new Date(`${month}-01T12:00:00`).toLocaleString('id-ID', {
+    const monthLabel = dayjs(`${month}-01`).toDate().toLocaleString('id-ID', {
       month: 'long',
       year: 'numeric',
     })
     return { month, monthLabel, total, fromRentalOwned, fromRentalFee }
-  }, [cars, txByCar, feePct])
+  }, [cars, txByCar, feePct, selectedMonth])
 
   const chartData = useMemo(() => {
     const byMonth = new Map<string, { month: string; income: number; expense: number }>()
@@ -310,6 +323,25 @@ export function HomePage() {
                   </ResponsiveContainer>
                 </Box>
               )}
+              <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-start' }}>
+                <DatePicker
+                  label="Filter bulan"
+                  value={dayjs(`${selectedMonth}-01`)}
+                  views={['month']}
+                  minDate={dayjs().startOf('year')}
+                  maxDate={dayjs().endOf('month')}
+                  disableFuture
+                  onChange={(value: Dayjs | null) => {
+                    if (value) setSelectedMonth(value.startOf('month').format('YYYY-MM'))
+                  }}
+                  slotProps={{
+                    textField: {
+                      size: 'small',
+                      sx: { minWidth: 220 },
+                    },
+                  }}
+                />
+              </Box>
             </CardContent>
           </Card>
 
@@ -328,7 +360,7 @@ export function HomePage() {
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box>
                   <Typography variant="subtitle1" fontWeight={600}>
-                    Rincian pendapatan bulan berjalan ({monthRevenueBreakdown.monthLabel})
+                    Rincian pendapatan ({monthRevenueBreakdown.monthLabel})
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Total: {formatIdr(monthRevenueBreakdown.total)}
@@ -360,18 +392,17 @@ export function HomePage() {
 
           {cars.map((car) => {
             const txs = txByCar[car.id] ?? []
+            const monthTxs = filterTransactionsByMonth(txs, selectedMonth)
             let bal = 0
-            const running = txs.map((t) => {
+            const running = monthTxs.map((t) => {
               bal += t.type === 'income' ? Number(t.amount) : -Number(t.amount)
               return bal
             })
-            const startIdx = Math.max(0, txs.length - HOME_TX_PREVIEW_COUNT)
-            const previewRows = txs
+            const startIdx = Math.max(0, monthTxs.length - HOME_TX_PREVIEW_COUNT)
+            const previewRows = monthTxs
               .slice(startIdx)
               .map((t, j) => ({ t, runningIdx: startIdx + j }))
               .reverse()
-            const month = currentMonthYyyyMm()
-            const monthTxs = filterTransactionsByMonth(txs, month)
             const partnerFeeThisMonth =
               isStaff && car.ownership_type === 'partner'
                 ? computePartnerRentalFeeForTransactions(monthTxs, feePct)
@@ -393,13 +424,13 @@ export function HomePage() {
                       <>
                         {' · '}
                         <Box component="span" sx={{ color: 'text.primary' }}>
-                          Fee rental (bulan ini): {formatIdr(partnerFeeThisMonth)}
+                          Fee rental ({selectedMonthLabel}): {formatIdr(partnerFeeThisMonth)}
                         </Box>
                       </>
                     ) : null}
                   </Typography>
                   <Divider sx={{ my: 2 }} />
-                  {txs.length === 0 ? (
+                  {monthTxs.length === 0 ? (
                     <Typography color="text.secondary">Belum ada transaksi.</Typography>
                   ) : (
                     <ResponsiveTableContainer>
@@ -447,7 +478,7 @@ export function HomePage() {
                       mt: 2,
                     }}
                   >
-                    {txs.length > 0 ? (
+                    {monthTxs.length > 0 ? (
                       <Button
                         component={RouterLink}
                         to={`/internal/transactions?car=${encodeURIComponent(car.id)}`}
@@ -465,7 +496,7 @@ export function HomePage() {
                       disabled={pdfBusyCarId === car.id}
                       onClick={() => void handleDownloadMonthLedger(car)}
                     >
-                      Unduh Rekap Bulan Berjalan
+                      Unduh Rekap {selectedMonthLabel}
                     </Button>
                   </Box>
                 </CardContent>

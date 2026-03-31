@@ -1,22 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import dayjs from 'dayjs'
 import {
   Alert,
   Box,
   Button,
   Chip,
   Divider,
-  FormControl,
-  InputLabel,
-  MenuItem,
   Paper,
-  Select,
-  TextField,
   Typography,
 } from '@mui/material'
 import DownloadIcon from '@mui/icons-material/Download'
 import { useSearchParams } from 'react-router-dom'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { InternalDataGridSearchPanel } from '../../../components/InternalDataGridSearchPanel'
+import { InternalCarMonthFilter } from '../../../components/InternalCarMonthFilter'
 import { supabase } from '../../../lib/supabase'
 import {
   TRANSACTION_CATEGORY_LABELS,
@@ -62,10 +59,7 @@ export function TransactionsPage() {
   const [searchParams] = useSearchParams()
   const [cars, setCars] = useState<CarOption[]>([])
   const [carId, setCarId] = useState<string>('')
-  const [month, setMonth] = useState(() => {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-  })
+  const [month, setMonth] = useState(() => dayjs().startOf('month'))
   const [rows, setRows] = useState<TransactionRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -103,8 +97,9 @@ export function TransactionsPage() {
     }
     setLoading(true)
     setError(null)
-    const start = `${month}-01T00:00:00.000Z`
-    const [y, m] = month.split('-').map(Number)
+    const monthStr = month.format('YYYY-MM')
+    const start = `${monthStr}-01T00:00:00.000Z`
+    const [y, m] = monthStr.split('-').map(Number)
     const next = new Date(y, m, 1)
     const end = next.toISOString()
 
@@ -167,7 +162,7 @@ export function TransactionsPage() {
       ])
       downloadLedgerReport({
         companyName,
-        month,
+        month: month.format('YYYY-MM'),
         car: {
           name: selectedCar.name,
           plate: selectedCar.plate,
@@ -292,27 +287,13 @@ export function TransactionsPage() {
       <Typography variant="h5" gutterBottom sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
         Transaksi
       </Typography>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2, alignItems: { xs: 'stretch', sm: 'center' } }}>
-        <FormControl sx={{ minWidth: 220, width: { xs: '100%', sm: 220 } }} size="small">
-          <InputLabel id="car-tx">Kendaraan</InputLabel>
-          <Select labelId="car-tx" label="Kendaraan" value={carId} onChange={(e) => setCarId(e.target.value)}>
-            {cars.map((c) => (
-              <MenuItem key={c.id} value={c.id}>
-                {c.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <TextField
-          type="month"
-          label="Bulan"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }}
-          size="small"
-          sx={{ width: { xs: '100%', sm: 'auto' }, minWidth: { sm: 160 } }}
-        />
-      </Box>
+      <InternalCarMonthFilter
+        cars={cars}
+        carId={carId}
+        onCarIdChange={setCarId}
+        month={month}
+        onMonthChange={setMonth}
+      />
 
       {carId ? (
         <InternalDataGridSearchPanel
@@ -340,7 +321,7 @@ export function TransactionsPage() {
       {carId ? (
         <Paper variant="outlined" sx={{ p: 2, mb: 2, borderRadius: 2 }}>
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 1.5 }}>
-            Rincian Keuangan — {month}
+            Rincian Keuangan — {month.format('YYYY-MM')}
           </Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: isPartnerCar ? '1fr 1fr 1fr 1fr' : '1fr 1fr 1fr' }, gap: 2 }}>
             <Box>

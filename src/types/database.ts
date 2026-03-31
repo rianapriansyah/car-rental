@@ -89,6 +89,7 @@ export type Database = {
           rental_id: string | null
           status: string
           start_date: string
+          start_time: string | null
           end_date: string
           duration_days: number | null
           estimated_income: number | null
@@ -109,6 +110,7 @@ export type Database = {
           rental_id?: string | null
           status?: string
           start_date: string
+          start_time?: string | null
           end_date: string
           duration_days?: number | null
           estimated_income?: number | null
@@ -129,6 +131,7 @@ export type Database = {
           rental_id?: string | null
           status?: string
           start_date?: string
+          start_time?: string | null
           end_date?: string
           duration_days?: number | null
           estimated_income?: number | null

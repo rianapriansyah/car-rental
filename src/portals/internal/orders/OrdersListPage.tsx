@@ -23,7 +23,7 @@ function orderSearchBlob(row: OrderRow, statusMap: Map<string, V2StatusRow>): st
   const car = row.v2_cars ? `${row.v2_cars.name} ${row.v2_cars.plate}` : ''
   const st = row.status
   const stLabel = statusMap.get(st)?.label ?? st
-  return `${row.renter_name} ${row.renter_phone ?? ''} ${car} ${st} ${stLabel}`.toLowerCase()
+  return `${row.renter_name} ${row.renter_phone ?? ''} ${car} ${st} ${stLabel} ${row.start_time ?? ''}`.toLowerCase()
 }
 
 export function OrdersListPage() {
@@ -98,6 +98,12 @@ export function OrdersListPage() {
       { field: 'renter_name', headerName: 'Penyewa', width: 160 },
       { field: 'renter_phone', headerName: 'Telepon', width: 140 },
       { field: 'start_date', headerName: 'Mulai', width: 120 },
+      {
+        field: 'start_time',
+        headerName: 'Jam mulai',
+        width: 100,
+        valueGetter: (_v, row) => row.start_time ?? '—',
+      },
       { field: 'end_date', headerName: 'Selesai', width: 120 },
       {
         field: 'duration_days',

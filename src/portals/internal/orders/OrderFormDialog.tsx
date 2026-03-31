@@ -44,6 +44,7 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
   const [renterPhone, setRenterPhone] = useState('')
   const [blacklistBlocked, setBlacklistBlocked] = useState(false)
   const [startDate, setStartDate] = useState<Dayjs | null>(null)
+  const [startTime, setStartTime] = useState('')
   const [endDate, setEndDate] = useState<Dayjs | null>(null)
   const [estimatedIncome, setEstimatedIncome] = useState('')
   const [depositAmount, setDepositAmount] = useState('')
@@ -68,6 +69,7 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
     setRenterPhone('')
     setBlacklistBlocked(false)
     setStartDate(null)
+    setStartTime('')
     setEndDate(null)
     setEstimatedIncome('')
     setDepositAmount('')
@@ -134,8 +136,8 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
 
   async function submit() {
     setError(null)
-    if (!carId || !renterName.trim() || !startDate || !endDate) {
-      setError('Kendaraan, nama penyewa, tanggal mulai, dan tanggal selesai wajib diisi.')
+    if (!carId || !renterName.trim() || !startDate || !startTime || !endDate) {
+      setError('Kendaraan, nama penyewa, tanggal mulai, jam mulai, dan tanggal selesai wajib diisi.')
       return
     }
     if (endDate.isBefore(startDate, 'day')) {
@@ -201,6 +203,7 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
         renter_phone: renterPhone.trim() || null,
         status: 'confirmed',
         start_date: startStr,
+        start_time: startTime,
         end_date: endStr,
         duration_days: dur,
         estimated_income: estNum,
@@ -276,7 +279,7 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' },
               gap: 2,
             }}
           >
@@ -293,6 +296,18 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
               onChange={(v) => setEndDate(v)}
               disabled={saving}
               slotProps={{ textField: { fullWidth: true, required: true, size: 'small' } }}
+            />
+            <TextField
+              size="small"
+              label="Jam mulai"
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              required
+              fullWidth
+              disabled={saving}
+              InputLabelProps={{ shrink: true }}
+              inputProps={{ step: 60 }}
             />
           </Box>
           <TextField
