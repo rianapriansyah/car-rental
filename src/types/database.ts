@@ -80,6 +80,59 @@ export type Database = {
           },
         ]
       }
+      v2_car_services: {
+        Row: {
+          id: string
+          car_id: string
+          category: Database['public']['Enums']['v2_service_category']
+          service_type: Database['public']['Enums']['v2_service_type']
+          description: string | null
+          service_date: string
+          next_due_date: string | null
+          cost: number | null
+          vendor: string | null
+          notes: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          car_id: string
+          category: Database['public']['Enums']['v2_service_category']
+          service_type: Database['public']['Enums']['v2_service_type']
+          description?: string | null
+          service_date: string
+          next_due_date?: string | null
+          cost?: number | null
+          vendor?: string | null
+          notes?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          car_id?: string
+          category?: Database['public']['Enums']['v2_service_category']
+          service_type?: Database['public']['Enums']['v2_service_type']
+          description?: string | null
+          service_date?: string
+          next_due_date?: string | null
+          cost?: number | null
+          vendor?: string | null
+          notes?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'v2_car_services_car_id_fkey'
+            columns: ['car_id']
+            isOneToOne: false
+            referencedRelation: 'v2_cars'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       v2_orders: {
         Row: {
           id: string
@@ -182,6 +235,27 @@ export type Database = {
           label?: string
           color?: string
           description?: string | null
+        }
+        Relationships: []
+      }
+      v2_service_interval_defaults: {
+        Row: {
+          id: string
+          service_type: Database['public']['Enums']['v2_service_type']
+          default_interval_months: number
+          warning_days: number
+        }
+        Insert: {
+          id?: string
+          service_type: Database['public']['Enums']['v2_service_type']
+          default_interval_months: number
+          warning_days?: number
+        }
+        Update: {
+          id?: string
+          service_type?: Database['public']['Enums']['v2_service_type']
+          default_interval_months?: number
+          warning_days?: number
         }
         Relationships: []
       }
@@ -402,7 +476,26 @@ export type Database = {
         Returns: undefined
       }
     }
-    Enums: Record<string, never>
+    Enums: {
+      v2_service_category: 'component_replacement' | 'routine_maintenance'
+      v2_service_type:
+        | 'ban'
+        | 'aki'
+        | 'kampas_rem'
+        | 'cakram_rem'
+        | 'timing_belt'
+        | 'v_belt'
+        | 'filter_udara'
+        | 'filter_bbm'
+        | 'filter_kabin'
+        | 'busi'
+        | 'part_lainnya'
+        | 'ganti_oli_mesin'
+        | 'ganti_oli_transmisi'
+        | 'ganti_coolant'
+        | 'ganti_minyak_rem'
+        | 'perawatan_lainnya'
+    }
     CompositeTypes: Record<string, never>
   }
 }

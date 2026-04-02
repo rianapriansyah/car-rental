@@ -90,6 +90,33 @@ function formatYmd(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
+const MONTH_NAMES_EN = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const
+
+/** e.g. 2026-04-03 → "03 April 2026" */
+function formatPublicReturnDate(ymd: string): string {
+  const [yRaw, mRaw, dRaw] = ymd.split('-')
+  const year = Number(yRaw)
+  const month = Number(mRaw)
+  const day = Number(dRaw)
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return ymd
+  const monthName = MONTH_NAMES_EN[month - 1]
+  if (!monthName) return ymd
+  return `${String(day).padStart(2, '0')} ${monthName} ${year}`
+}
+
 function formatHm(date: Date): string {
   const hh = String(date.getHours()).padStart(2, '0')
   const mm = String(date.getMinutes()).padStart(2, '0')
@@ -115,8 +142,9 @@ function getRentalDisplay(rental: FleetCar['activeRental']): { returnDateLabel: 
   }
 
   const virtualEnd = getVirtualEndFromStart(rental)
+  const returnYmd = rental.end_date ?? (virtualEnd ? formatYmd(virtualEnd) : null)
   return {
-    returnDateLabel: rental.end_date ?? (virtualEnd ? formatYmd(virtualEnd) : 'TBD'),
+    returnDateLabel: returnYmd ? formatPublicReturnDate(returnYmd) : 'TBD',
     etaLabel: virtualEnd ? formatHm(virtualEnd) : '-',
     durationLabel: rental.duration_days != null ? `${rental.duration_days} hari` : '-',
   }

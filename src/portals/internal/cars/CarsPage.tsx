@@ -29,7 +29,9 @@ function carSearchBlob(row: CarWithPartner): string {
   const status =
     row.status === 'available'
       ? 'tersedia available'
-      : 'disewa rented'
+      : row.status === 'inactive'
+        ? 'tidak aktif inactive'
+        : 'disewa rented'
   return `${row.name} ${row.plate} ${partner} ${row.ownership_type ?? ''} ${ownership} ${row.status} ${status}`.toLowerCase()
 }
 
@@ -103,14 +105,14 @@ export function CarsPage() {
         field: 'status',
         headerName: 'Status',
         width: 130,
-        renderCell: (params) => (
-          <Chip
-            size="small"
-            label={params.row.status === 'available' ? 'Tersedia' : 'Disewa'}
-            color={params.row.status === 'available' ? 'success' : 'warning'}
-            sx={{ my: 0.5 }}
-          />
-        ),
+        renderCell: (params) => {
+          const st = params.row.status
+          const label =
+            st === 'available' ? 'Tersedia' : st === 'inactive' ? 'Tidak aktif' : 'Disewa'
+          const color =
+            st === 'available' ? 'success' : st === 'inactive' ? 'error' : 'warning'
+          return <Chip size="small" label={label} color={color} sx={{ my: 0.5 }} />
+        },
       },
       {
         field: 'has_gps',

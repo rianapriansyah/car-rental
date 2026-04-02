@@ -15,7 +15,10 @@ import {
   MenuItem,
   Select,
   Switch,
+  Tab,
+  Tabs,
   TextField,
+  Typography,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import { supabase } from '../../../lib/supabase'
@@ -23,6 +26,7 @@ import type { PartnerRow } from '../../../types/partner'
 import type { CarWithPartner } from '../../../types/car'
 import { ConfirmDialog } from '../../../components/ConfirmDialog.tsx'
 import { DangerZone } from '../../../components/DangerZone'
+import { CarServiceTab } from './CarServiceTab'
 
 type Props = {
   open: boolean
@@ -42,13 +46,19 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
   const [photoPreview, setPhotoPreview] = useState('')
   const [uploading, setUploading] = useState(false)
   const [notes, setNotes] = useState('')
+  /** When true, car participates in operations (available or currently rented); false → status inactive. */
+  const [fleetActive, setFleetActive] = useState(true)
   const [partners, setPartners] = useState<PartnerRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [tab, setTab] = useState(0)
+  const hasPartnerOption = partners.some((p) => p.id === partnerId)
+  const partnerSelectValue = hasPartnerOption ? partnerId : ''
 
   useEffect(() => {
     if (!open) return
+    setTab(0)
     setError(null)
     setName(initial?.name ?? '')
     setPlate(initial?.plate ?? '')
@@ -59,6 +69,7 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
     setPhotoFile(null)
     setPhotoPreview('')
     setNotes(initial?.notes ?? '')
+    setFleetActive(initial ? initial.status !== 'inactive' : true)
   }, [open, initial])
 
   useEffect(() => {
@@ -108,6 +119,12 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
       nextPhotoUrl = data.publicUrl
       setUploading(false)
     }
+    const nextStatus = !fleetActive
+      ? 'inactive'
+      : initial?.status === 'rented'
+        ? 'rented'
+        : 'available'
+
     const payload = {
       name: name.trim(),
       plate: plate.trim(),
@@ -117,6 +134,7 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
       daily_rate: dailyRateValue != null && Number.isFinite(dailyRateValue) ? dailyRateValue : null,
       photo_url: photoFile ? nextPhotoUrl : initial ? initial.photo_url : null,
       notes: notes.trim() || null,
+      status: nextStatus,
     }
 
     if (initial) {
@@ -127,10 +145,7 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
         return
       }
     } else {
-      const { error: iError } = await supabase.from('v2_cars').insert({
-        ...payload,
-        status: 'available',
-      })
+      const { error: iError } = await supabase.from('v2_cars').insert(payload)
       setSaving(false)
       if (iError) {
         setError(iError.message)
@@ -163,7 +178,23 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
     <>
       <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
         <DialogTitle>{initial ? 'Ubah kendaraan' : 'Tambah kendaraan'}</DialogTitle>
+        {initial ? (
+          <Tabs
+            value={tab}
+            onChange={(_, value: number) => setTab(value)}
+            sx={{ px: 2, borderBottom: 1, borderColor: 'divider' }}
+          >
+            <Tab label="Detail" />
+            <Tab label="Service" />
+          </Tabs>
+        ) : null}
         <DialogContent>
+          {initial && tab === 1 ? (
+            <Box sx={{ mt: 1 }}>
+              <CarServiceTab carId={initial.id} />
+            </Box>
+          ) : (
+            <>
           {error ? (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
               {error}
@@ -220,9 +251,12 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
                 <Select
                   labelId="p-label"
                   label="Mitra"
-                  value={partnerId}
+                  value={partnerSelectValue}
                   onChange={(e) => setPartnerId(e.target.value)}
                 >
+                  <MenuItem value="">
+                    <em>Pilih mitra</em>
+                  </MenuItem>
                   {partners.map((p) => (
                     <MenuItem key={p.id} value={p.id}>
                       {p.name}
@@ -231,6 +265,17 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
                 </Select>
               </FormControl>
             ) : null}
+          </Box>
+          <Box sx={{ mb: 1.5 }}>
+            <FormControlLabel
+              control={
+                <Switch checked={fleetActive} onChange={(_, v) => setFleetActive(v)} size="small" color="primary" />
+              }
+              label="Kendaraan aktif"
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', ml: 4, mt: -0.5 }}>
+              Nonaktifkan jika kendaraan tidak dipakai operasional (mis. dibawa pemilik).
+            </Typography>
           </Box>
           <Box
             sx={{
@@ -308,16 +353,20 @@ export function CarFormDialog({ open, initial, onClose, onSaved }: Props) {
             minRows={4}
             fullWidth
           />
+            </>
+          )}
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
-          <Button onClick={handleClose} disabled={saving}>
-            Batal
-          </Button>
-          <Button variant="contained" onClick={() => void handleSave()} disabled={saving || uploading}>
-            {uploading ? <CircularProgress size={18} color="inherit" /> : saving ? 'Menyimpan…' : 'Simpan'}
-          </Button>
-        </DialogActions>
-        {initial && !initial.deleted_at ? (
+        {(!initial || tab === 0) ? (
+          <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
+            <Button onClick={handleClose} disabled={saving}>
+              Batal
+            </Button>
+            <Button variant="contained" onClick={() => void handleSave()} disabled={saving || uploading}>
+              {uploading ? <CircularProgress size={18} color="inherit" /> : saving ? 'Menyimpan…' : 'Simpan'}
+            </Button>
+          </DialogActions>
+        ) : null}
+        {initial && !initial.deleted_at && tab === 0 ? (
           <Box sx={{ px: 3, pb: 2, pt: 2 }}>
             <DangerZone
               title="Zona bahaya"
