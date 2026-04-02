@@ -195,7 +195,7 @@ export function PublicFleetPage() {
   )
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50' }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <AppBar position="sticky" color="transparent" elevation={0} sx={{ bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
         <Toolbar sx={{ flexWrap: 'wrap', gap: 1, py: { xs: 1, sm: 0 }, minHeight: { xs: 56, sm: 64 } }}>
           <Typography variant="h6" sx={{ flexGrow: 1, minWidth: '40%', fontSize: { xs: '1rem', sm: '1.25rem' } }}>
@@ -206,7 +206,7 @@ export function PublicFleetPage() {
           </Button>
         </Toolbar>
       </AppBar>
-      <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3 }, px: { xs: 2, sm: 3 } }}>
+      <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3 }, px: { xs: 2, sm: 3 }, bgcolor: 'background.default' }}>
         <Typography variant="h4" component="h1" gutterBottom sx={{ fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' } }}>
           Available cars
         </Typography>
