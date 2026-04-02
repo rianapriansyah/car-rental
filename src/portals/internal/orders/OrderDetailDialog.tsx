@@ -19,7 +19,7 @@ import { fetchV2StatusesByType, type V2StatusRow } from '../../../lib/v2StatusHe
 import type { Tables } from '../../../types/database'
 
 export type OrderDetail = Tables<'v2_orders'> & {
-  v2_cars: { name: string; plate: string } | null
+  v2_cars: { name: string; plate: string; daily_rate: number | null } | null
 }
 
 type Props = {
@@ -55,7 +55,7 @@ export function OrderDetailDialog({
     setLoading(true)
     setError(null)
     const [{ data, error: qError }, map] = await Promise.all([
-      supabase.from('v2_orders').select('*, v2_cars(name, plate)').eq('id', orderId).maybeSingle(),
+      supabase.from('v2_orders').select('*, v2_cars(name, plate, daily_rate)').eq('id', orderId).maybeSingle(),
       fetchV2StatusesByType('order').catch(() => new Map<string, V2StatusRow>()),
     ])
     setStatusMap(map)
@@ -176,8 +176,12 @@ export function OrderDetailDialog({
               <DetailField label="Selesai" value={row.end_date} />
               <DetailField label="Durasi (hari)" value={row.duration_days != null ? String(row.duration_days) : '—'} />
               <DetailField
-                label="Perkiraan pendapatan"
-                value={row.estimated_income != null ? formatIdr(Number(row.estimated_income)) : '—'}
+                label="Referensi tarif"
+                value={
+                  row.v2_cars?.daily_rate != null && row.duration_days != null
+                    ? `${formatIdr(Number(row.v2_cars.daily_rate) * row.duration_days)} (${row.duration_days} hari x ${formatIdr(Number(row.v2_cars.daily_rate))})`
+                    : '—'
+                }
               />
               <DetailField
                 label="Deposit"

@@ -163,11 +163,11 @@ export function PublicFleetPage() {
                   {car.status === 'rented' && car.activeRental ? (
                     <Box>
                       <Typography variant="body2">
-                        Return: {car.activeRental.end_date ?? 'TBD'}
+                        Perkiraan kembali: {car.activeRental.end_date ?? 'TBD'}
                       </Typography>
                       {car.activeRental.duration_days != null ? (
                         <Typography variant="body2" color="text.secondary">
-                          Duration: {car.activeRental.duration_days} days
+                          Durasi: {car.activeRental.duration_days} days
                         </Typography>
                       ) : null}
                     </Box>
