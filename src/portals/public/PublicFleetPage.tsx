@@ -5,11 +5,12 @@ import {
   Box,
   Button,
   Card,
-  CardContent,
-  CardMedia,
   Chip,
   CircularProgress,
   Container,
+  ImageList,
+  ImageListItem,
+  ImageListItemBar,
   Toolbar,
   Typography,
 } from '@mui/material'
@@ -19,10 +20,118 @@ import type { CarRow } from '../../types/car'
 import type { RentalRow } from '../../types/rental'
 
 type FleetCar = CarRow & {
-  activeRental: Pick<RentalRow, 'end_date' | 'duration_days'> | null
+  activeRental: Pick<RentalRow, 'start_date' | 'start_time' | 'end_date' | 'duration_days'> | null
+}
+
+function isMissingPhotoSource(src: string | null): boolean {
+  if (!src || !src.trim()) return true
+  const value = src.toLowerCase()
+  return (
+    value.includes('no-photo') ||
+    value.includes('nophoto') ||
+    value.includes('placeholder') ||
+    value.includes('default')
+  )
+}
+
+function FleetCardImage({ src, alt }: { src: string | null; alt: string }) {
+  const [hasError, setHasError] = useState(false)
+  const canShowImage = Boolean(!isMissingPhotoSource(src) && !hasError)
+
+  if (canShowImage) {
+    return (
+      <Box
+        component="img"
+        src={src as string}
+        alt={alt}
+        onError={() => setHasError(true)}
+        sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', bgcolor: 'grey.200' }}
+      />
+    )
+  }
+
+  return (
+    <Box
+      sx={{
+        width: '100%',
+        height: '100%',
+        background: 'linear-gradient(135deg, #d1d5db 0%, #9ca3af 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Typography sx={{ color: '#1f2937', fontWeight: 700, letterSpacing: 0.2 }}>
+        No photo
+      </Typography>
+    </Box>
+  )
+}
+
+function parseYmdHm(dateStr: string, timeStr: string | null): Date | null {
+  const [yRaw, mRaw, dRaw] = dateStr.split('-')
+  const year = Number(yRaw)
+  const month = Number(mRaw)
+  const day = Number(dRaw)
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null
+
+  const [hRaw = '0', minRaw = '0'] = (timeStr ?? '00:00').split(':')
+  const hour = Number(hRaw)
+  const minute = Number(minRaw)
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null
+
+  return new Date(year, month - 1, day, hour, minute, 0, 0)
+}
+
+function formatYmd(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function formatHm(date: Date): string {
+  const hh = String(date.getHours()).padStart(2, '0')
+  const mm = String(date.getMinutes()).padStart(2, '0')
+  return `${hh}:${mm}`
+}
+
+function getVirtualEndFromStart(rental: FleetCar['activeRental']): Date | null {
+  if (!rental?.start_date || rental.duration_days == null) return null
+  const start = parseYmdHm(rental.start_date, rental.start_time)
+  if (!start) return null
+  const end = new Date(start)
+  end.setDate(end.getDate() + rental.duration_days)
+  return end
+}
+
+function getRentalDisplay(rental: FleetCar['activeRental']): { returnDateLabel: string; etaLabel: string; durationLabel: string } {
+  if (!rental) {
+    return {
+      returnDateLabel: 'TBD',
+      etaLabel: '-',
+      durationLabel: '-',
+    }
+  }
+
+  const virtualEnd = getVirtualEndFromStart(rental)
+  return {
+    returnDateLabel: rental.end_date ?? (virtualEnd ? formatYmd(virtualEnd) : 'TBD'),
+    etaLabel: virtualEnd ? formatHm(virtualEnd) : '-',
+    durationLabel: rental.duration_days != null ? `${rental.duration_days} hari` : '-',
+  }
+}
+
+function getStatusChipProps(status: string): { label: string; color: 'success' | 'warning' | 'error' | 'default' } {
+  const normalized = status.toLowerCase()
+  if (normalized === 'available') return { label: 'Available', color: 'success' }
+  if (normalized === 'rented') return { label: 'Rented', color: 'warning' }
+  if (normalized === 'inactive') return { label: 'Inactive', color: 'error' }
+  return { label: status, color: 'default' }
 }
 
 export function PublicFleetPage() {
+  const cardMediaHeight = { xs: 320, sm: 320, md: 320 }
   const navigate = useNavigate()
   const [cars, setCars] = useState<FleetCar[]>([])
   const [loading, setLoading] = useState(true)
@@ -46,7 +155,7 @@ export function PublicFleetPage() {
 
     const { data: rentalData, error: rentalError } = await supabase
       .from('v2_rentals')
-      .select('car_id, end_date, duration_days, status')
+      .select('car_id, start_date, start_time, end_date, duration_days, status')
       .eq('status', 'active')
 
     if (rentalError) {
@@ -55,9 +164,14 @@ export function PublicFleetPage() {
       return
     }
 
-    const byCar = new Map<string, Pick<RentalRow, 'end_date' | 'duration_days'>>()
+    const byCar = new Map<string, Pick<RentalRow, 'start_date' | 'start_time' | 'end_date' | 'duration_days'>>()
     for (const r of rentalData ?? []) {
-      byCar.set(r.car_id, { end_date: r.end_date, duration_days: r.duration_days })
+      byCar.set(r.car_id, {
+        start_date: r.start_date,
+        start_time: r.start_time,
+        end_date: r.end_date,
+        duration_days: r.duration_days,
+      })
     }
 
     const merged: FleetCar[] = (carData ?? []).map((c) => ({
@@ -123,58 +237,56 @@ export function PublicFleetPage() {
               },
             }}
           >
-            {cars.map((car) => (
-              <Card key={car.id} variant="outlined" sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                {car.photo_url ? (
-                  <CardMedia
-                    component="img"
-                    height="160"
-                    image={car.photo_url}
-                    alt=""
-                    sx={{ objectFit: 'cover', flexShrink: 0, height: { xs: 160, sm: 180 } }}
-                  />
-                ) : (
-                  <Box
-                    sx={{
-                      height: { xs: 160, sm: 180 },
-                      flexShrink: 0,
-                      bgcolor: 'grey.200',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Typography color="text.secondary">No photo</Typography>
-                  </Box>
-                )}
-                <CardContent sx={{ flexGrow: 1, pt: 2, '&:last-child': { pb: 2 } }}>
-                  <Typography variant="h6" component="h2" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                    {car.name}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    {car.plate}
-                  </Typography>
-                  <Chip
-                    size="small"
-                    label={car.status === 'rented' ? 'Rented' : 'Available'}
-                    color={car.status === 'rented' ? 'warning' : 'success'}
-                    sx={{ mb: 1 }}
-                  />
-                  {car.status === 'rented' && car.activeRental ? (
-                    <Box>
-                      <Typography variant="body2">
-                        Perkiraan kembali: {car.activeRental.end_date ?? 'TBD'}
-                      </Typography>
-                      {car.activeRental.duration_days != null ? (
-                        <Typography variant="body2" color="text.secondary">
-                          Durasi: {car.activeRental.duration_days} days
-                        </Typography>
-                      ) : null}
-                    </Box>
-                  ) : null}
-                </CardContent>
-              </Card>
-            ))}
+            {cars.map((car) => {
+              const rentalDisplay = getRentalDisplay(car.activeRental)
+              const imageItems = [{ img: car.photo_url, title: car.name, subtitle: car.plate }]
+              const statusChip = getStatusChipProps(car.status)
+
+              return (
+                <Card key={car.id} variant="outlined" sx={{ height: '100%', overflow: 'hidden' }}>
+                  <ImageList cols={1} gap={0} sx={{ m: 0, width: '100%', height: cardMediaHeight }}>
+                    {imageItems.map((item) => (
+                      <ImageListItem key={item.img ?? `${car.id}-no-photo`} sx={{ height: '100% !important', overflow: 'hidden', position: 'relative' }}>
+                        <FleetCardImage src={item.img} alt={item.title} />
+                        <ImageListItemBar
+                          title={item.title}
+                          subtitle={
+                            <Box sx={{ mt: 0.5 }}>
+                              <Typography component="div" variant="caption" sx={{ color: 'inherit', display: 'block' }}>
+                                {item.subtitle}
+                              </Typography>
+                              <Box sx={{ mt: 0.5, mb: 0.5 }}>
+                                <Chip
+                                  label={statusChip.label}
+                                  color={statusChip.color}
+                                  size="small"
+                                  sx={{ height: 20, '& .MuiChip-label': { px: 1, fontSize: '0.7rem', fontWeight: 700 } }}
+                                />
+                              </Box>
+                              {car.status === 'rented' && car.activeRental ? (
+                                <>
+                                  <Typography component="div" variant="caption" sx={{ color: 'inherit', display: 'block' }}>
+                                    Perkiraan kembali: {rentalDisplay.returnDateLabel} ETA {rentalDisplay.etaLabel}
+                                  </Typography>
+                                  <Typography component="div" variant="caption" sx={{ color: 'inherit', display: 'block' }}>
+                                    Durasi: {rentalDisplay.durationLabel}
+                                  </Typography>
+                                </>
+                              ) : null}
+                            </Box>
+                          }
+                          sx={{
+                            background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.45) 60%, rgba(0,0,0,0) 100%)',
+                            '& .MuiImageListItemBar-title': { fontSize: '1.05rem', fontWeight: 700, lineHeight: 1.2 },
+                            '& .MuiImageListItemBar-subtitle': { lineHeight: 1.2 },
+                          }}
+                        />
+                      </ImageListItem>
+                    ))}
+                  </ImageList>
+                </Card>
+              )
+            })}
           </Box>
         )}
       </Container>
