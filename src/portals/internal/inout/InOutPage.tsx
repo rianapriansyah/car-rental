@@ -30,6 +30,7 @@ import { completeRentalWithIncome } from '../../../lib/feeEngine'
 import { formatIdr } from '../../../lib/formatIdr'
 import { calcCost, type CostBreakdown } from '../../../lib/rentalCost'
 import type { RentalWithCar } from '../../../types/rental'
+import { ConfirmDialog } from '../../../components/ConfirmDialog.tsx'
 
 // ─── RENTAL COST HELPERS ─────────────────────────────────────────────────────
 
@@ -430,6 +431,9 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false)
+  // Recompute elapsed time periodically so the under-1h cancel rule stays accurate.
+  const [nowTick, setNowTick] = useState(0)
 
   useEffect(() => {
     void supabase
@@ -457,7 +461,24 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     void loadActive()
   }, [loadActive, refreshTick])
 
+  useEffect(() => {
+    if (!selectedId) return
+    const id = window.setInterval(() => setNowTick((n) => n + 1), 30_000)
+    return () => clearInterval(id)
+  }, [selectedId])
+
   const selected = activeRentals.find((r) => r.id === selectedId) ?? null
+
+  const elapsedHoursSinceStart = useMemo(() => {
+    if (!selected?.start_date) return null
+    return calcElapsedHours(selected.start_date, selected.start_time ?? null, dayjs())
+  }, [selected, nowTick])
+
+  const canCancelEarlyRent =
+    Boolean(selected) &&
+    elapsedHoursSinceStart != null &&
+    elapsedHoursSinceStart >= 0 &&
+    elapsedHoursSinceStart < 1
   const downPayment = Number(selected?.down_payment ?? 0)
   const checkInNote = selected?.manual_note ?? ''
   const completionMoment = useMemo<Dayjs | null>(() => {
@@ -564,6 +585,59 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     setBusy(false)
     const label = selected?.renter_name ?? 'Rental'
     setSuccess(`${label} selesai. Total: ${formatIdr(totalGrossIncome)}.`)
+    setSelectedId('')
+    setGross('')
+    setEndDate(dayjs())
+    setEndTime(dayjs())
+    setCheckOutNote('')
+    setBlacklist(false)
+    setBlacklistNote('')
+    void loadActive()
+    onCompleted()
+  }
+
+  async function handleCancelEarlyRent() {
+    if (!selected) return
+    const elapsed = calcElapsedHours(selected.start_date, selected.start_time ?? null, dayjs())
+    if (elapsed >= 1 || elapsed < 0) {
+      setError('Batalkan sewa hanya bisa dilakukan jika sewa berjalan kurang dari 1 jam.')
+      setConfirmCancelOpen(false)
+      return
+    }
+    setConfirmCancelOpen(false)
+    setBusy(true)
+    setError(null)
+    setSuccess(null)
+    const rentalId = selected.id
+    const carId = selected.car_id
+
+    const { error: orderErr } = await supabase.from('v2_orders').update({ rental_id: null }).eq('rental_id', rentalId)
+    if (orderErr) {
+      setBusy(false)
+      setError(orderErr.message)
+      return
+    }
+
+    const { error: delErr } = await supabase.from('v2_rentals').delete().eq('id', rentalId)
+    if (delErr) {
+      setBusy(false)
+      setError(delErr.message)
+      return
+    }
+
+    const { error: carErr } = await supabase.from('v2_cars').update({ status: 'available' }).eq('id', carId)
+    setBusy(false)
+    if (carErr) {
+      setError(
+        `${carErr.message} Sewa telah dihapus; periksa status kendaraan secara manual jika perlu.`,
+      )
+      void loadActive()
+      onCompleted()
+      return
+    }
+
+    const label = selected.renter_name ?? 'Penyewa'
+    setSuccess(`Sewa dibatalkan. ${label} — data penyewa di info penyewa tidak diubah.`)
     setSelectedId('')
     setGross('')
     setEndDate(dayjs())
@@ -763,11 +837,47 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         />
       ) : null}
 
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
+      {canCancelEarlyRent && selected ? (
+        <Alert severity="info" variant="outlined">
+          Batalkan sewa tersedia karena masa sewa belum 1 jam (sejak mulai). Data penyewa di Info Penyewa tetap
+          tersimpan.
+        </Alert>
+      ) : null}
+
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column-reverse', sm: 'row' },
+          justifyContent: 'flex-end',
+          alignItems: { xs: 'stretch', sm: 'center' },
+          gap: 1,
+          mt: 1,
+        }}
+      >
+        {canCancelEarlyRent ? (
+          <Button
+            variant="outlined"
+            color="error"
+            onClick={() => setConfirmCancelOpen(true)}
+            disabled={busy || !selectedId}
+            sx={{ mr: { sm: 'auto' } }}
+          >
+            Batalkan sewa (&lt; 1 jam)
+          </Button>
+        ) : null}
         <Button variant="contained" color="success" onClick={() => void handleComplete()} disabled={busy || !selectedId}>
           {busy ? 'Menyelesaikan…' : 'Selesaikan sewa'}
         </Button>
       </Box>
+
+      <ConfirmDialog
+        open={confirmCancelOpen}
+        title="Batalkan sewa?"
+        description="Sewa aktif akan dihapus dan kendaraan dikembalikan ke status Tersedia. Riwayat renter di Info Penyewa tidak diubah. Lanjutkan?"
+        confirmLabel="Batalkan sewa"
+        onCancel={() => setConfirmCancelOpen(false)}
+        onConfirm={() => void handleCancelEarlyRent()}
+      />
     </Box>
   )
 }

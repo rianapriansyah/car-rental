@@ -16,6 +16,7 @@ import {
 } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { formatIdr } from '../../lib/formatIdr'
 import type { CarRow } from '../../types/car'
 import type { RentalRow } from '../../types/rental'
 
@@ -283,13 +284,29 @@ export function PublicFleetPage() {
                               <Typography component="div" variant="caption" sx={{ color: 'inherit', display: 'block' }}>
                                 {item.subtitle}
                               </Typography>
-                              <Box sx={{ mt: 0.5, mb: 0.5 }}>
+                              <Box
+                                sx={{
+                                  mt: 0.5,
+                                  mb: 0.5,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 0.75,
+                                  flexWrap: 'wrap',
+                                }}
+                              >
                                 <Chip
                                   label={statusChip.label}
                                   color={statusChip.color}
                                   size="small"
                                   sx={{ height: 20, '& .MuiChip-label': { px: 1, fontSize: '0.7rem', fontWeight: 700 } }}
                                 />
+                                <Typography
+                                  component="span"
+                                  variant="caption"
+                                  sx={{ color: 'inherit', fontWeight: 700, lineHeight: 1.2 }}
+                                >
+                                  {car.daily_rate != null ? `${formatIdr(Number(car.daily_rate))}/hari` : '—'}
+                                </Typography>
                               </Box>
                               {car.status === 'rented' && car.activeRental ? (
                                 <>
