@@ -25,6 +25,7 @@ import {
 
 const CATEGORIES: TransactionCategory[] = [
   'rental_income',
+  'dp_rental_income',
   'gps_topup',
   'maintenance',
   'rental_fee',

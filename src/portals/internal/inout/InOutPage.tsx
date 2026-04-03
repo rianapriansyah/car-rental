@@ -28,6 +28,7 @@ import { ensureRenterInInfo, isRenterBlacklisted } from '../../../lib/renterInfo
 import { supabase } from '../../../lib/supabase'
 import { completeRentalWithIncome } from '../../../lib/feeEngine'
 import { formatIdr } from '../../../lib/formatIdr'
+import { insertDownPaymentIncomeTransaction } from '../../../lib/rentalDownPaymentTxn'
 import { calcCost, type CostBreakdown } from '../../../lib/rentalCost'
 import type { RentalWithCar } from '../../../types/rental'
 import { ConfirmDialog } from '../../../components/ConfirmDialog.tsx'
@@ -294,6 +295,22 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
       return
     }
 
+    if (downPaymentValue > 0) {
+      const { error: dpError } = await insertDownPaymentIncomeTransaction(
+        supabase,
+        carId,
+        rental.id,
+        downPaymentValue,
+      )
+      if (dpError) {
+        await supabase.from('v2_rentals').delete().eq('id', rental.id)
+        await supabase.from('v2_cars').update({ status: 'available' }).eq('id', carId)
+        setSaving(false)
+        setError(dpError.message)
+        return
+      }
+    }
+
     setSaving(false)
     const carName = cars.find((c) => c.id === carId)?.name ?? 'Car'
     setSuccess(`${carName} disewakan ke ${renterName.trim()}. Sewa dimulai.`)
@@ -379,7 +396,7 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
           onChange={(e) => setDownPayment(e.target.value.replace(/\D/g, ''))}
           inputMode="numeric"
           fullWidth
-          helperText="Ditambahkan ke pendapatan kotor saat selesai."
+          helperText="Dicatat sebagai DP sewa di transaksi; saat selesai masukkan sisa pembayaran (bukan total)."
         />
       </Box>
 
@@ -757,7 +774,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
 
       <TextField
         size="small"
-        label="Pendapatan kotor saat selesai (IDR)"
+        label="Sisa pembayaran di checkout (IDR)"
         value={gross}
         onChange={(e) => setGross(e.target.value.replace(/\D/g, ''))}
         inputMode="numeric"
@@ -765,8 +782,8 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         disabled={!selectedId}
         helperText={
           downPayment > 0
-            ? `DP ${formatIdr(downPayment)} akan ditambahkan otomatis.`
-            : 'Masukkan sisa tagihan yang diterima dari penyewa.'
+            ? `DP ${formatIdr(downPayment)} sudah tercatat di transaksi. Total kotor = DP + isian ini.`
+            : 'Jumlah yang diterima saat selesai (total sewa jika tanpa DP).'
         }
       />
 

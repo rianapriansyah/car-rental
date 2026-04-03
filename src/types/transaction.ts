@@ -6,6 +6,7 @@ export type TransactionType = 'income' | 'expense'
 
 export type TransactionCategory =
   | 'rental_income'
+  | 'dp_rental_income'
   | 'gps_topup'
   | 'maintenance'
   | 'rental_fee'
@@ -14,7 +15,8 @@ export type TransactionCategory =
 
 /** Display labels for category values (UI / PDF). */
 export const TRANSACTION_CATEGORY_LABELS: Record<TransactionCategory, string> = {
-  rental_income: 'Pendapatan sewa',
+  rental_income: 'Pendapatan sewa (sisa checkout)',
+  dp_rental_income: 'Pendapatan DP sewa',
   gps_topup: 'Isi GPS',
   maintenance: 'Perawatan',
   rental_fee: 'Fee Rental',

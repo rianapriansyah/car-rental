@@ -25,7 +25,8 @@ const ORANGE: [number, number, number] = [230, 81, 0]
 const BORDER: [number, number, number] = [220, 220, 220]
 
 function categoryLabel(cat: string): string {
-  if (cat === 'rental_income') return 'Sewa'
+  if (cat === 'rental_income') return 'Sewa (checkout)'
+  if (cat === 'dp_rental_income') return 'DP sewa'
   return transactionCategoryLabel(cat)
 }
 
@@ -39,8 +40,9 @@ function rentalDurationDays(r: LedgerPdfRentalInfo): string {
 
 function buildDescription(t: TransactionRow, rental?: LedgerPdfRentalInfo): string {
   let base: string
-  if (t.category === 'rental_income' && rental) {
-    base = `Sewa — ${rental.renter_name} (${rentalDurationDays(rental)})`
+  if ((t.category === 'rental_income' || t.category === 'dp_rental_income') && rental) {
+    const kind = t.category === 'dp_rental_income' ? 'DP sewa' : 'Sewa (checkout)'
+    base = `${kind} — ${rental.renter_name} (${rentalDurationDays(rental)})`
   } else if (t.manual_note?.trim()) {
     base = t.manual_note.trim()
   } else {

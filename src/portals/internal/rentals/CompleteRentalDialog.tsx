@@ -120,7 +120,7 @@ export function CompleteRentalDialog({ open, rentalId, downPayment, checkInNote,
 
         <TextField
           size="small"
-          label="Pendapatan kotor saat selesai (IDR)"
+          label="Sisa pembayaran di checkout (IDR)"
           value={gross}
           onChange={(e) => setGross(e.target.value.replace(/\D/g, ''))}
           inputMode="numeric"
@@ -128,8 +128,8 @@ export function CompleteRentalDialog({ open, rentalId, downPayment, checkInNote,
           sx={{ mb: 2 }}
           helperText={
             downPayment > 0
-              ? `DP ${formatIdr(downPayment)} otomatis ditambahkan.`
-              : undefined
+              ? `DP ${formatIdr(downPayment)} sudah tercatat di transaksi. Total kotor = DP + isian ini (boleh 0).`
+              : 'Jumlah yang diterima saat selesai.'
           }
         />
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mb: 2 }}>

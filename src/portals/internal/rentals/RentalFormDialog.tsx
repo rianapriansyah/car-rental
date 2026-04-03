@@ -22,6 +22,7 @@ import { checkCarAvailability } from '../../../lib/carAvailability'
 import { formatAvailabilityConflictMessage } from '../../../lib/formatScheduleConflict'
 import { ensureRenterInInfo, isRenterBlacklisted } from '../../../lib/renterInfoHelpers'
 import { supabase } from '../../../lib/supabase'
+import { insertDownPaymentIncomeTransaction } from '../../../lib/rentalDownPaymentTxn'
 
 type CarOption = { id: string; name: string; plate: string }
 
@@ -179,6 +180,22 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
       return
     }
 
+    if (downPaymentValue > 0) {
+      const { error: dpError } = await insertDownPaymentIncomeTransaction(
+        supabase,
+        carId,
+        rental.id,
+        downPaymentValue,
+      )
+      if (dpError) {
+        await supabase.from('v2_rentals').delete().eq('id', rental.id)
+        await supabase.from('v2_cars').update({ status: 'available' }).eq('id', carId)
+        setSaving(false)
+        setError(dpError.message)
+        return
+      }
+    }
+
     setSaving(false)
     onSaved()
     onClose()
@@ -257,7 +274,7 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
             onChange={(e) => setDownPayment(e.target.value.replace(/\D/g, ''))}
             inputMode="numeric"
             fullWidth
-            helperText="Opsional. Dijumlahkan dengan pendapatan kotor saat selesai."
+            helperText="Opsional. Tercatat sebagai DP sewa; saat selesai isi sisa bayar (bukan total)."
           />
           <TextField
             size="small"
