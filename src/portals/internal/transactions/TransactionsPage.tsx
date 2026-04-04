@@ -29,7 +29,11 @@ import {
   fetchLedgerRentalMap,
 } from '../../../lib/ledgerPdf'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
-import { computePartnerRentalFeeForTransactions } from '../../../lib/partnerRentalFee'
+import {
+  sumMonthIncomeFromTransactions,
+  sumOpsExpenseExcludingRentalFee,
+  sumRecordedRentalFeeFromTransactions,
+} from '../../../lib/partnerRentalFee'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
@@ -65,7 +69,6 @@ export function TransactionsPage() {
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
-  const [feePct, setFeePct] = useState(0)
 
   const [keyword, setKeyword] = useState('')
   const [pdfBusy, setPdfBusy] = useState(false)
@@ -121,23 +124,6 @@ export function TransactionsPage() {
 
   useEffect(() => {
     void loadCars()
-    void (async () => {
-      const { data: rentalKey } = await supabase
-        .from('v2_app_settings')
-        .select('value')
-        .eq('key', 'rental_fee_pct')
-        .maybeSingle()
-      if (rentalKey?.value) {
-        setFeePct(Number(rentalKey.value))
-        return
-      }
-      const { data: legacy } = await supabase
-        .from('v2_app_settings')
-        .select('value')
-        .eq('key', 'partner_fee_pct')
-        .maybeSingle()
-      if (legacy?.value) setFeePct(Number(legacy.value))
-    })()
   }, [loadCars])
 
   useEffect(() => {
@@ -181,24 +167,17 @@ export function TransactionsPage() {
   const { financials, gridRows, filteredGridRows, tableFiltersActive } = useMemo(() => {
     let b = 0
     const out: TransactionGridRow[] = []
-    let totalIncome = 0
-    let totalExpenseOps = 0 // expenses except rental_fee (GPS, maintenance, etc.)
+    const totalIncome = sumMonthIncomeFromTransactions(rows)
+    const totalExpenseOps = sumOpsExpenseExcludingRentalFee(rows)
+    const feeRental = isPartnerCar ? sumRecordedRentalFeeFromTransactions(rows) : 0
+    const nettForPartner = totalIncome - totalExpenseOps - feeRental
 
     for (const t of rows) {
       const amt = Number(t.amount)
       const delta = t.type === 'income' ? amt : -amt
       b += delta
       out.push({ ...t, runningBalance: b })
-
-      if (t.type === 'income') {
-        totalIncome += amt
-      } else if (t.category !== 'rental_fee' && t.category !== 'partner_fee') {
-        totalExpenseOps += amt
-      }
     }
-
-    const feeRental = isPartnerCar ? computePartnerRentalFeeForTransactions(rows, feePct) : 0
-    const nettForPartner = totalIncome - totalExpenseOps - feeRental
 
     const filtered = out.filter((t) => matchesSearchTokens(transactionSearchBlob(t), keyword))
 
@@ -220,7 +199,7 @@ export function TransactionsPage() {
       filteredGridRows: tableFiltersActive ? runningFiltered : out,
       tableFiltersActive,
     }
-  }, [rows, keyword, feePct, isPartnerCar])
+  }, [rows, keyword, isPartnerCar])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -335,7 +314,7 @@ export function TransactionsPage() {
             {isPartnerCar ? (
               <>
                 <Box>
-                  <Typography variant="caption" color="text.secondary">Biaya Pengelolaan ({feePct}%)</Typography>
+                  <Typography variant="caption" color="text.secondary">Biaya Pengelolaan (tercatat)</Typography>
                   <Typography variant="subtitle2" color="warning.main" fontWeight={700}>{formatIdr(financials.feeRental)}</Typography>
                 </Box>
                 <Box>

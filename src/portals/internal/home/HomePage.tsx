@@ -43,7 +43,11 @@ import { ResponsiveTableContainer } from '../../../components/ResponsiveTableCon
 import { supabase } from '../../../lib/supabase'
 import { useAuth } from '../../../contexts/AuthContext'
 import { isInternalStaffUser } from '../../../lib/authRole'
-import { computePartnerRentalFeeForTransactions } from '../../../lib/partnerRentalFee'
+import {
+  sumMonthIncomeFromTransactions,
+  sumOpsExpenseExcludingRentalFee,
+  sumRecordedRentalFeeFromTransactions,
+} from '../../../lib/partnerRentalFee'
 import { usePartnerProfile } from '../../../hooks/usePartnerProfile'
 import type { CarWithPartner } from '../../../types/car'
 import type { TransactionRow } from '../../../types/transaction'
@@ -80,7 +84,6 @@ export function HomePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pdfBusyCarId, setPdfBusyCarId] = useState<string | null>(null)
-  const [feePct, setFeePct] = useState(0)
   const [selectedMonth, setSelectedMonth] = useState(currentMonthYyyyMm())
 
   const load = useCallback(async () => {
@@ -153,26 +156,6 @@ export function HomePage() {
     }
   }, [isStaff, partner, partnerLoading, load])
 
-  useEffect(() => {
-    void (async () => {
-      const { data: rentalKey } = await supabase
-        .from('v2_app_settings')
-        .select('value')
-        .eq('key', 'rental_fee_pct')
-        .maybeSingle()
-      if (rentalKey?.value) {
-        setFeePct(Number(rentalKey.value))
-        return
-      }
-      const { data: legacy } = await supabase
-        .from('v2_app_settings')
-        .select('value')
-        .eq('key', 'partner_fee_pct')
-        .maybeSingle()
-      if (legacy?.value) setFeePct(Number(legacy.value))
-    })()
-  }, [])
-
   async function handleDownloadMonthLedger(car: CarWithPartner) {
     const month = selectedMonth
     const txs = filterTransactionsByMonth(txByCar[car.id] ?? [], selectedMonth)
@@ -217,7 +200,7 @@ export function HomePage() {
     for (const car of cars) {
       const txs = filterTransactionsByMonth(txByCar[car.id] ?? [], month)
       if (car.ownership_type === 'partner') {
-        fromRentalFee += computePartnerRentalFeeForTransactions(txs, feePct)
+        fromRentalFee += sumRecordedRentalFeeFromTransactions(txs)
       } else {
         for (const t of txs) {
           if (t.type === 'income') fromRentalOwned += Number(t.amount)
@@ -230,7 +213,7 @@ export function HomePage() {
       year: 'numeric',
     })
     return { month, monthLabel, total, fromRentalOwned, fromRentalFee }
-  }, [cars, txByCar, feePct, selectedMonth])
+  }, [cars, txByCar, selectedMonth])
 
   const chartData = useMemo(() => {
     const byMonth = new Map<string, { month: string; income: number; expense: number }>()
@@ -403,10 +386,11 @@ export function HomePage() {
               .slice(startIdx)
               .map((t, j) => ({ t, runningIdx: startIdx + j }))
               .reverse()
-            const partnerFeeThisMonth =
-              isStaff && car.ownership_type === 'partner'
-                ? computePartnerRentalFeeForTransactions(monthTxs, feePct)
-                : null
+            const monthIncome = sumMonthIncomeFromTransactions(monthTxs)
+            const opsExpense = sumOpsExpenseExcludingRentalFee(monthTxs)
+            const feeRecorded = sumRecordedRentalFeeFromTransactions(monthTxs)
+            const nettMitra = monthIncome - opsExpense - feeRecorded
+            const isPartner = car.ownership_type === 'partner'
             return (
               <Card key={car.id} sx={{ mb: 2, overflow: 'hidden' }}>
                 <CardContent sx={{ px: { xs: 1.5, sm: 2 } }}>
@@ -416,19 +400,70 @@ export function HomePage() {
                   <Typography
                     variant="body2"
                     color="text.secondary"
-                    gutterBottom
-                    sx={{ wordBreak: 'break-word' }}
+                    sx={{ wordBreak: 'break-word', mb: 1.5 }}
                   >
-                    {car.plate} · Saldo: {formatIdr(bal)}
-                    {partnerFeeThisMonth != null ? (
-                      <>
-                        {' · '}
-                        <Box component="span" sx={{ color: 'text.primary' }}>
-                          Fee rental ({selectedMonthLabel}): {formatIdr(partnerFeeThisMonth)}
-                        </Box>
-                      </>
-                    ) : null}
+                    {car.plate}
+                    {isPartner ? (
+                      <Typography component="span" variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.25 }}>
+                        Kendaraan mitra
+                      </Typography>
+                    ) : (
+                      <Typography component="span" variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.25 }}>
+                        Kendaraan milik perusahaan
+                      </Typography>
+                    )}
                   </Typography>
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: {
+                        xs: isPartner ? '1fr 1fr' : '1fr',
+                        sm: isPartner ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)',
+                      },
+                      gap: 1.5,
+                      p: 1.5,
+                      borderRadius: 2,
+                      bgcolor: 'action.hover',
+                      border: 1,
+                      borderColor: 'divider',
+                      mb: 2,
+                    }}
+                  >
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Pemasukan ({selectedMonthLabel})
+                      </Typography>
+                      <Typography variant="body2" fontWeight={700} color="success.main">
+                        {formatIdr(monthIncome)}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Pengeluaran operasional
+                      </Typography>
+                      <Typography variant="body2" fontWeight={700} color="error.main">
+                        {formatIdr(opsExpense)}
+                      </Typography>
+                    </Box>
+                    {isPartner ? (
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Biaya pengelolaan (tercatat)
+                        </Typography>
+                        <Typography variant="body2" fontWeight={700} color="warning.main">
+                          {formatIdr(feeRecorded)}
+                        </Typography>
+                      </Box>
+                    ) : null}
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {isPartner ? 'Neto mitra' : 'Saldo bersih'}
+                      </Typography>
+                      <Typography variant="body2" fontWeight={700}>
+                        {formatIdr(nettMitra)}
+                      </Typography>
+                    </Box>
+                  </Box>
                   <Divider sx={{ my: 2 }} />
                   {monthTxs.length === 0 ? (
                     <Typography color="text.secondary">Belum ada transaksi.</Typography>

@@ -1,23 +1,39 @@
 import type { TransactionRow } from '../types/transaction'
 
-/**
- * Management fee for a partner-owned car for a set of transactions (e.g. one month),
- * aligned with {@link TransactionsPage}: prefers recorded rental_fee rows, else % of (income − ops expenses).
- */
-export function computePartnerRentalFeeForTransactions(
-  transactions: TransactionRow[],
-  feePct: number,
-): number {
-  let totalIncome = 0
-  let totalExpenseOps = 0
-  let totalRentalFee = 0
+/** Sum of all income amounts in a transaction set (e.g. one month for one car). */
+export function sumMonthIncomeFromTransactions(transactions: TransactionRow[]): number {
+  let total = 0
   for (const t of transactions) {
-    const amt = Number(t.amount)
-    if (t.type === 'income') totalIncome += amt
-    else if (t.category === 'rental_fee' || t.category === 'partner_fee') totalRentalFee += amt
-    else totalExpenseOps += amt
+    if (t.type === 'income') total += Number(t.amount)
   }
-  return totalRentalFee > 0
-    ? totalRentalFee
-    : Math.round(((totalIncome - totalExpenseOps) * feePct) / 100)
+  return total
+}
+
+/**
+ * Sum of operational expenses excluding partner fee lines (GPS, maintenance, etc.).
+ * Aligns with {@link sumRecordedRentalFeeFromTransactions} for net partner math.
+ */
+export function sumOpsExpenseExcludingRentalFee(transactions: TransactionRow[]): number {
+  let total = 0
+  for (const t of transactions) {
+    if (t.type !== 'expense') continue
+    if (t.category === 'rental_fee' || t.category === 'partner_fee') continue
+    total += Number(t.amount)
+  }
+  return total
+}
+
+/**
+ * Sum of recorded partner/management fee expenses for a set of transactions (e.g. one month).
+ * Single source of truth: only `rental_fee` / legacy `partner_fee` rows in `v2_transactions`.
+ */
+export function sumRecordedRentalFeeFromTransactions(transactions: TransactionRow[]): number {
+  let total = 0
+  for (const t of transactions) {
+    if (t.type !== 'expense') continue
+    if (t.category === 'rental_fee' || t.category === 'partner_fee') {
+      total += Number(t.amount)
+    }
+  }
+  return total
 }
