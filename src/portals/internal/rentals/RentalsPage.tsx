@@ -22,12 +22,11 @@ import type { RentalWithCar } from '../../../types/rental'
 import { CompleteRentalDialog } from './CompleteRentalDialog'
 import { RentalReceiptDialog } from './RentalReceiptDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
+import { getRentalStatusChipProps, RENTAL_STATUS_LABELS, statusChipSx } from '../../../lib/statusChips'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
 type CarOption = { id: string; name: string; plate: string }
-
-const STATUS_LABELS: Record<string, string> = { active: 'Aktif', completed: 'Selesai', cancelled: 'Dibatalkan' }
 
 function rentalMatchesCarAndMonth(row: RentalWithCar, carId: string, monthYyyyMm: string): boolean {
   if (carId && row.car_id !== carId) return false
@@ -36,18 +35,28 @@ function rentalMatchesCarAndMonth(row: RentalWithCar, carId: string, monthYyyyMm
   return true
 }
 
+const MINUTES_PER_DAY = 24 * 60
+
 function calcDurationLabel(row: RentalWithCar): string {
   if (row.status === 'cancelled') return '—'
-  const start = new Date(row.start_date)
-  const end = row.end_date ? new Date(row.end_date) : new Date()
-  const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
-  if (row.status === 'active') return `${days} hari (aktif)`
-  return `${days} hari`
+  const startT = row.start_time?.trim() || '00:00'
+  const start = dayjs(`${row.start_date}T${startT}`)
+  const end = row.end_date
+    ? dayjs(`${row.end_date}T${row.end_time?.trim() || '23:59'}`)
+    : dayjs()
+  const totalMinutes = Math.max(0, end.diff(start, 'minute'))
+  if (totalMinutes === 0) return '—'
+  if (totalMinutes < MINUTES_PER_DAY) {
+    const jam = Math.max(1, Math.ceil(totalMinutes / 60))
+    return row.status === 'active' ? `${jam} jam (aktif)` : `${jam} jam`
+  }
+  const days = Math.floor(totalMinutes / MINUTES_PER_DAY)
+  return row.status === 'active' ? `${days} hari (aktif)` : `${days} hari`
 }
 
 function rentalSearchBlob(row: RentalWithCar): string {
   const car = row.v2_cars ? `${row.v2_cars.name} ${row.v2_cars.plate}` : ''
-  const statusLabel = STATUS_LABELS[row.status] ?? row.status
+  const statusLabel = RENTAL_STATUS_LABELS[row.status] ?? row.status
   return `${row.renter_name} ${car} ${statusLabel} ${row.status}`.toLowerCase()
 }
 
@@ -179,9 +188,10 @@ export function RentalsPage() {
         field: 'status',
         headerName: 'Status',
         width: 130,
-        renderCell: (params) => (
-          <Chip size="small" label={STATUS_LABELS[params.row.status] ?? params.row.status} sx={{ my: 0.5 }} />
-        ),
+        renderCell: (params) => {
+          const { label, color } = getRentalStatusChipProps(params.row.status)
+          return <Chip size="small" label={label} color={color} sx={statusChipSx} />
+        },
       },
       {
         field: 'is_manual',
@@ -289,6 +299,7 @@ export function RentalsPage() {
       <CompleteRentalDialog
         open={completeRental !== null}
         rentalId={completeRental?.id ?? null}
+        carId={completeRental?.car_id ?? null}
         downPayment={Number(completeRental?.down_payment ?? 0)}
         checkInNote={completeRental?.manual_note}
         onClose={() => setCompleteRental(null)}

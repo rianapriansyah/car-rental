@@ -21,6 +21,7 @@ import { formatIdr } from '../../../lib/formatIdr'
 type Props = {
   open: boolean
   rentalId: string | null
+  carId: string | null
   downPayment: number
   checkInNote?: string | null
   onClose: () => void
@@ -34,8 +35,17 @@ function buildCombinedNote(checkIn: string, checkOut: string): string | undefine
   return `check in note :\n${ci || '—'}\n\ncheck out note :\n${co || '—'}`
 }
 
-export function CompleteRentalDialog({ open, rentalId, downPayment, checkInNote, onClose, onCompleted }: Props) {
+export function CompleteRentalDialog({
+  open,
+  rentalId,
+  carId,
+  downPayment,
+  checkInNote,
+  onClose,
+  onCompleted,
+}: Props) {
   const [gross, setGross] = useState('')
+  const [mileage, setMileage] = useState('')
   const [checkOutNote, setCheckOutNote] = useState('')
   const [endDate, setEndDate] = useState<Dayjs | null>(dayjs())
   const [endTime, setEndTime] = useState<Dayjs | null>(dayjs())
@@ -76,11 +86,24 @@ export function CompleteRentalDialog({ open, rentalId, downPayment, checkInNote,
       return
     }
 
+    let mileageKm: number | undefined
+    const mileageTrim = mileage.trim()
+    if (mileageTrim !== '') {
+      const n = Number(mileageTrim.replace(/\D/g, ''))
+      if (!Number.isFinite(n) || n < 0) {
+        setBusy(false)
+        setError('Masukkan kilometer yang valid (bilangan bulat ≥ 0).')
+        return
+      }
+      mileageKm = Math.round(n)
+    }
+
     const { error: doneError } = await completeRentalWithIncome(
       rentalId,
       totalGrossIncome,
       combinedNote,
       completionAt,
+      carId ? { carId, mileageKm: mileageKm ?? null } : undefined,
     )
     setBusy(false)
     if (doneError) {
@@ -88,6 +111,7 @@ export function CompleteRentalDialog({ open, rentalId, downPayment, checkInNote,
       return
     }
     setGross('')
+    setMileage('')
     setCheckOutNote('')
     setEndDate(dayjs())
     setEndTime(dayjs())
@@ -131,6 +155,16 @@ export function CompleteRentalDialog({ open, rentalId, downPayment, checkInNote,
               ? `DP ${formatIdr(downPayment)} sudah tercatat di transaksi. Total kotor = DP + isian ini (boleh 0).`
               : 'Jumlah yang diterima saat selesai.'
           }
+        />
+        <TextField
+          size="small"
+          label="Kilometer (odometer) saat ini"
+          value={mileage}
+          onChange={(e) => setMileage(e.target.value.replace(/\D/g, ''))}
+          inputMode="numeric"
+          fullWidth
+          sx={{ mb: 2 }}
+          helperText="Opsional. Mencatat KM kendaraan saat check-out."
         />
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mb: 2 }}>
           <DatePicker

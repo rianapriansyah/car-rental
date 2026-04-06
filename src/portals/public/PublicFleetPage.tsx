@@ -16,6 +16,7 @@ import {
 } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { getCarStatusChipProps } from '../../lib/statusChips'
 import { formatIdr } from '../../lib/formatIdr'
 import type { CarRow } from '../../types/car'
 import type { RentalRow } from '../../types/rental'
@@ -151,14 +152,6 @@ function getRentalDisplay(rental: FleetCar['activeRental']): { returnDateLabel: 
   }
 }
 
-function getStatusChipProps(status: string): { label: string; color: 'success' | 'warning' | 'error' | 'default' } {
-  const normalized = status.toLowerCase()
-  if (normalized === 'available') return { label: 'Available', color: 'success' }
-  if (normalized === 'rented') return { label: 'Rented', color: 'warning' }
-  if (normalized === 'inactive') return { label: 'Inactive', color: 'error' }
-  return { label: status, color: 'default' }
-}
-
 export function PublicFleetPage() {
   const cardMediaHeight = { xs: 320, sm: 320, md: 320 }
   const navigate = useNavigate()
@@ -269,7 +262,7 @@ export function PublicFleetPage() {
             {cars.map((car) => {
               const rentalDisplay = getRentalDisplay(car.activeRental)
               const imageItems = [{ img: car.photo_url, title: car.name, subtitle: car.plate }]
-              const statusChip = getStatusChipProps(car.status)
+              const statusChip = getCarStatusChipProps(car.status, 'en')
 
               return (
                 <Card key={car.id} variant="outlined" sx={{ height: '100%', overflow: 'hidden' }}>

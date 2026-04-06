@@ -81,4 +81,14 @@ describe('completeRentalWithIncome', () => {
     const { error } = await completeRentalWithIncome('r1', 100)
     expect(error?.message).toBe('rpc down')
   })
+
+  it('updates v2_cars mileage when options include carId and mileageKm', async () => {
+    const { error } = await completeRentalWithIncome('rent-1', 1_200_000, undefined, undefined, {
+      carId: 'car-99',
+      mileageKm: 45_231,
+    })
+    expect(error).toBeNull()
+    expect(from).toHaveBeenCalledWith('v2_cars')
+    expect(updatePayloads.some((p) => p && typeof p === 'object' && 'mileage' in p && (p as { mileage: number }).mileage === 45_231)).toBe(true)
+  })
 })

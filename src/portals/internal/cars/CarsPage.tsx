@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Alert,
   Box,
@@ -17,6 +18,7 @@ import type { CarWithPartner } from '../../../types/car'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { CarFormDialog } from './CarFormDialog.tsx'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
+import { getCarStatusChipProps, statusChipSx } from '../../../lib/statusChips'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
@@ -36,12 +38,12 @@ function carSearchBlob(row: CarWithPartner): string {
 }
 
 export function CarsPage() {
+  const navigate = useNavigate()
   const [rows, setRows] = useState<CarWithPartner[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [includeDeleted, setIncludeDeleted] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [editing, setEditing] = useState<CarWithPartner | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
   const [keyword, setKeyword] = useState('')
@@ -106,12 +108,8 @@ export function CarsPage() {
         headerName: 'Status',
         width: 130,
         renderCell: (params) => {
-          const st = params.row.status
-          const label =
-            st === 'available' ? 'Tersedia' : st === 'inactive' ? 'Tidak aktif' : 'Disewa'
-          const color =
-            st === 'available' ? 'success' : st === 'inactive' ? 'error' : 'warning'
-          return <Chip size="small" label={label} color={color} sx={{ my: 0.5 }} />
+          const { label, color } = getCarStatusChipProps(params.row.status)
+          return <Chip size="small" label={label} color={color} sx={statusChipSx} />
         },
       },
       {
@@ -132,14 +130,13 @@ export function CarsPage() {
         renderCell: (params) => (
           <DataGridUpdateIconButton
             onClick={() => {
-              setEditing(params.row)
-              setDialogOpen(true)
+              navigate(`/internal/cars/${params.row.id}`)
             }}
           />
         ),
       },
     ],
-    [],
+    [navigate],
   )
 
   return (
@@ -169,10 +166,7 @@ export function CarsPage() {
           variant="contained"
           fullWidth
           sx={{ maxWidth: { xs: '100%', sm: 200 } }}
-          onClick={() => {
-            setEditing(null)
-            setDialogOpen(true)
-          }}
+          onClick={() => setDialogOpen(true)}
         >
           Tambah kendaraan
         </Button>
@@ -213,12 +207,7 @@ export function CarsPage() {
           </Paper>
         </Box>
       )}
-      <CarFormDialog
-        open={dialogOpen}
-        initial={editing}
-        onClose={() => setDialogOpen(false)}
-        onSaved={() => void load()}
-      />
+      <CarFormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
     </Box>
   )
 }

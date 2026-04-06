@@ -19,6 +19,7 @@ import { DangerZone } from '../../../components/DangerZone'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { supabase } from '../../../lib/supabase'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
+import { getRenterAccountChipProps, statusChipSx } from '../../../lib/statusChips'
 import type { Tables } from '../../../types/database'
 
 type RenterInfo = Tables<'v2_renter_info'>
@@ -31,8 +32,8 @@ const STATUS_OPTIONS = [
 ]
 
 function statusChip(status: string) {
-  if (status === 'blacklisted') return <Chip size="small" label="Diblokir" color="error" />
-  return <Chip size="small" label="Aktif" color="success" />
+  const { label, color } = getRenterAccountChipProps(status)
+  return <Chip size="small" label={label} color={color} sx={statusChipSx} />
 }
 
 function renterInfoSearchBlob(row: RenterInfo): string {

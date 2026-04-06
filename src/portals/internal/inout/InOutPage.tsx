@@ -54,7 +54,47 @@ function formatElapsed(hours: number): string {
   return parts.join(' ')
 }
 
-type CarOption = { id: string; name: string; plate: string }
+type CarOption = {
+  id: string
+  name: string
+  plate: string
+  /** Relative time since last completed rental ended, e.g. "3 hari yang lalu"; null if none. */
+  lastCompletedRelative: string | null
+}
+
+/** Indonesian relative label from rental completion (end_date / end_time). */
+function formatLastCompletedRelativeId(endDate: string, endTime: string | null): string {
+  const t = endTime?.trim() || '23:59'
+  const end = dayjs(`${endDate}T${t}`)
+  const days = dayjs().startOf('day').diff(end.startOf('day'), 'day')
+  if (days <= 0) return 'hari ini'
+  if (days === 1) return 'kemarin'
+  return `${days} hari yang lalu`
+}
+
+function CarSelectMenuRow({ c }: { c: CarOption }) {
+  return (
+    <Box
+      component="span"
+      sx={{
+        display: 'inline-flex',
+        flexWrap: 'wrap',
+        alignItems: 'baseline',
+        columnGap: 0.75,
+        rowGap: 0.25,
+      }}
+    >
+      <span>
+        {c.name} — {c.plate}
+      </span>
+      {c.lastCompletedRelative ? (
+        <Typography component="span" variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
+          ({c.lastCompletedRelative})
+        </Typography>
+      ) : null}
+    </Box>
+  )
+}
 
 
 function buildCombinedNote(checkIn: string, checkOut: string): string | undefined {
@@ -104,7 +144,40 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
       .eq('status', 'available')
       .is('deleted_at', null)
       .order('name')
-    if (!qError) setCars(data ?? [])
+    if (qError) return
+    const list = data ?? []
+    const ids = list.map((c) => c.id)
+    const latestEndByCar = new Map<string, { end_date: string; end_time: string | null }>()
+    if (ids.length > 0) {
+      const { data: rentalRows } = await supabase
+        .from('v2_rentals')
+        .select('car_id, end_date, end_time')
+        .eq('status', 'completed')
+        .in('car_id', ids)
+      for (const r of rentalRows ?? []) {
+        if (!r.end_date) continue
+        const cur = latestEndByCar.get(r.car_id)
+        const rEnd = dayjs(`${r.end_date}T${r.end_time?.trim() || '23:59'}`)
+        if (!cur) {
+          latestEndByCar.set(r.car_id, { end_date: r.end_date, end_time: r.end_time })
+          continue
+        }
+        const cEnd = dayjs(`${cur.end_date}T${cur.end_time?.trim() || '23:59'}`)
+        if (rEnd.isAfter(cEnd)) {
+          latestEndByCar.set(r.car_id, { end_date: r.end_date, end_time: r.end_time })
+        }
+      }
+    }
+    const merged: CarOption[] = list.map((c) => {
+      const end = latestEndByCar.get(c.id)
+      return {
+        ...c,
+        lastCompletedRelative: end
+          ? formatLastCompletedRelativeId(end.end_date, end.end_time)
+          : null,
+      }
+    })
+    setCars(merged)
   }, [])
 
   useEffect(() => {
@@ -342,12 +415,19 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
           label="Kendaraan (tersedia)"
           value={carId}
           onChange={(e) => setCarId(e.target.value)}
+          renderValue={(id) => {
+            const c = cars.find((x) => x.id === id)
+            if (!c) return ''
+            return <CarSelectMenuRow c={c} />
+          }}
         >
           {cars.length === 0 ? (
             <MenuItem disabled value=""><em>Tidak ada kendaraan tersedia</em></MenuItem>
           ) : null}
           {cars.map((c) => (
-            <MenuItem key={c.id} value={c.id}>{c.name} — {c.plate}</MenuItem>
+            <MenuItem key={c.id} value={c.id}>
+              <CarSelectMenuRow c={c} />
+            </MenuItem>
           ))}
         </Select>
       </FormControl>
@@ -432,7 +512,9 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
 
 // ─── CHECK OUT ───────────────────────────────────────────────────────────────
 
-type RentalWithCarRate = RentalWithCar & { v2_cars: { name: string; plate: string; daily_rate: number | null } | null }
+type RentalWithCarRate = RentalWithCar & {
+  v2_cars: { name: string; plate: string; daily_rate: number | null; mileage: number | null } | null
+}
 
 function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCompleted: () => void }) {
   const [activeRentals, setActiveRentals] = useState<RentalWithCarRate[]>([])
@@ -443,6 +525,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const [endDate, setEndDate] = useState<Dayjs | null>(dayjs())
   const [endTime, setEndTime] = useState<Dayjs | null>(dayjs())
   const [checkOutNote, setCheckOutNote] = useState('')
+  const [checkoutMileage, setCheckoutMileage] = useState('')
   const [blacklist, setBlacklist] = useState(false)
   const [blacklistNote, setBlacklistNote] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -467,7 +550,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     setLoadingRentals(true)
     const { data, error: qError } = await supabase
       .from('v2_rentals')
-      .select('*, v2_cars(name, plate, daily_rate)')
+      .select('*, v2_cars(name, plate, daily_rate, mileage)')
       .eq('status', 'active')
       .order('start_date', { ascending: false })
     setLoadingRentals(false)
@@ -514,7 +597,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   }, [selected, overtimeRate, completionMoment])
 
   async function handleComplete() {
-    if (!selectedId) return
+    if (!selectedId || !selected) return
     const grossInput = Number(gross.replace(/\D/g, ''))
     if (!Number.isFinite(grossInput) || grossInput < 0) {
       setError('Masukkan jumlah pendapatan kotor yang valid (IDR).')
@@ -544,11 +627,25 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     }
 
     const combinedNote = buildCombinedNote(checkInNote, checkOutNote)
+
+    let mileageKm: number | null = null
+    const mileageTrim = checkoutMileage.trim()
+    if (mileageTrim !== '') {
+      const n = Number(mileageTrim.replace(/\D/g, ''))
+      if (!Number.isFinite(n) || n < 0) {
+        setBusy(false)
+        setError('Masukkan kilometer yang valid (bilangan bulat ≥ 0).')
+        return
+      }
+      mileageKm = Math.round(n)
+    }
+
     const { error: doneError } = await completeRentalWithIncome(
       selectedId,
       totalGrossIncome,
       combinedNote,
       completionAt,
+      selected.car_id ? { carId: selected.car_id, mileageKm } : undefined,
     )
     if (doneError) {
       setBusy(false)
@@ -607,6 +704,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     setEndDate(dayjs())
     setEndTime(dayjs())
     setCheckOutNote('')
+    setCheckoutMileage('')
     setBlacklist(false)
     setBlacklistNote('')
     void loadActive()
@@ -660,6 +758,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     setEndDate(dayjs())
     setEndTime(dayjs())
     setCheckOutNote('')
+    setCheckoutMileage('')
     setBlacklist(false)
     setBlacklistNote('')
     void loadActive()
@@ -683,6 +782,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
             setEndDate(dayjs())
             setEndTime(dayjs())
             setCheckOutNote('')
+            setCheckoutMileage('')
             setBlacklist(false)
             setBlacklistNote('')
             setError(null)
@@ -784,6 +884,21 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
           downPayment > 0
             ? `DP ${formatIdr(downPayment)} sudah tercatat di transaksi. Total kotor = DP + isian ini.`
             : 'Jumlah yang diterima saat selesai (total sewa jika tanpa DP).'
+        }
+      />
+
+      <TextField
+        size="small"
+        label="Kilometer (odometer) saat ini"
+        value={checkoutMileage}
+        onChange={(e) => setCheckoutMileage(e.target.value.replace(/\D/g, ''))}
+        inputMode="numeric"
+        fullWidth
+        disabled={!selectedId}
+        helperText={
+          selected?.v2_cars?.mileage != null
+            ? `Terakhir tercatat: ${selected.v2_cars.mileage.toLocaleString('id-ID')} km. Opsional — isi untuk memperbarui.`
+            : 'Opsional. Mencatat KM kendaraan saat check-out.'
         }
       />
 

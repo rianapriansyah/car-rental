@@ -39,6 +39,7 @@ export type Database = {
           status: string
           photo_url: string | null
           notes: string | null
+          mileage: number | null
           created_at: string | null
           deleted_at: string | null
         }
@@ -53,6 +54,7 @@ export type Database = {
           status?: string
           photo_url?: string | null
           notes?: string | null
+          mileage?: number | null
           created_at?: string | null
           deleted_at?: string | null
         }
@@ -67,6 +69,7 @@ export type Database = {
           status?: string
           photo_url?: string | null
           notes?: string | null
+          mileage?: number | null
           created_at?: string | null
           deleted_at?: string | null
         }

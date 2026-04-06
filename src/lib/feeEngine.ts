@@ -5,6 +5,12 @@ type CompletionAt = {
   endTime: string
 }
 
+export type CompleteRentalOptions = {
+  /** When set with a non-negative number, updates `v2_cars.mileage` for this car after completion. */
+  carId?: string
+  mileageKm?: number | null
+}
+
 /**
  * Persists gross income and finalizes the rental via DB RPC (fees are never computed in the client).
  */
@@ -13,6 +19,7 @@ export async function completeRentalWithIncome(
   grossIncome: number,
   combinedNote?: string,
   completionAt?: CompletionAt,
+  options?: CompleteRentalOptions,
 ): Promise<{ error: Error | null }> {
   const patch: Record<string, unknown> = { gross_income: grossIncome }
   if (combinedNote !== undefined) patch.manual_note = combinedNote || null
@@ -59,6 +66,19 @@ export async function completeRentalWithIncome(
 
     if (finalUpdateError) {
       return { error: new Error(finalUpdateError.message) }
+    }
+  }
+
+  if (options?.carId && options.mileageKm != null) {
+    const km = Math.round(Number(options.mileageKm))
+    if (Number.isFinite(km) && km >= 0) {
+      const { error: carMileageError } = await supabase
+        .from('v2_cars')
+        .update({ mileage: km })
+        .eq('id', options.carId)
+      if (carMileageError) {
+        return { error: new Error(carMileageError.message) }
+      }
     }
   }
 
