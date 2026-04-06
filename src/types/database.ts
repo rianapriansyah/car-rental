@@ -92,6 +92,8 @@ export type Database = {
           description: string | null
           service_date: string
           next_due_date: string | null
+          service_mileage: number | null
+          next_due_mileage: number | null
           cost: number | null
           vendor: string | null
           notes: string | null
@@ -106,6 +108,8 @@ export type Database = {
           description?: string | null
           service_date: string
           next_due_date?: string | null
+          service_mileage?: number | null
+          next_due_mileage?: number | null
           cost?: number | null
           vendor?: string | null
           notes?: string | null
@@ -120,6 +124,8 @@ export type Database = {
           description?: string | null
           service_date?: string
           next_due_date?: string | null
+          service_mileage?: number | null
+          next_due_mileage?: number | null
           cost?: number | null
           vendor?: string | null
           notes?: string | null

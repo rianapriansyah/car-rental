@@ -42,6 +42,16 @@ function serviceCategoryLabel(category: ServiceCategory): string {
   return category === 'component_replacement' ? 'Component Replacement' : 'Routine Maintenance'
 }
 
+function parseOptionalKm(raw: string): { value: number | null; invalid: boolean } {
+  const t = raw.trim()
+  if (t === '') return { value: null, invalid: false }
+  const digits = t.replace(/\D/g, '')
+  if (digits === '') return { value: null, invalid: true }
+  const n = Math.round(Number(digits))
+  if (!Number.isFinite(n) || n < 0) return { value: null, invalid: true }
+  return { value: n, invalid: false }
+}
+
 type LogServiceDialogProps = {
   open: boolean
   carId: string
@@ -57,6 +67,8 @@ function LogServiceDialog({ open, carId, addService, intervalDefaultsByType, onC
   const [description, setDescription] = useState('')
   const [serviceDate, setServiceDate] = useState<Dayjs | null>(dayjs())
   const [nextDueDate, setNextDueDate] = useState<Dayjs | null>(null)
+  const [serviceMileage, setServiceMileage] = useState('')
+  const [nextDueMileage, setNextDueMileage] = useState('')
   const [cost, setCost] = useState('')
   const [vendor, setVendor] = useState('')
   const [notes, setNotes] = useState('')
@@ -75,6 +87,8 @@ function LogServiceDialog({ open, carId, addService, intervalDefaultsByType, onC
     setDescription('')
     setServiceDate(dayjs())
     setNextDueDate(null)
+    setServiceMileage('')
+    setNextDueMileage('')
     setCost('')
     setVendor('')
     setNotes('')
@@ -108,6 +122,16 @@ function LogServiceDialog({ open, carId, addService, intervalDefaultsByType, onC
       setError('Deskripsi wajib diisi untuk tipe lainnya.')
       return
     }
+    const sm = parseOptionalKm(serviceMileage)
+    const ndm = parseOptionalKm(nextDueMileage)
+    if (sm.invalid) {
+      setError('Kilometer service tidak valid (masukkan bilangan bulat ≥ 0).')
+      return
+    }
+    if (ndm.invalid) {
+      setError('Kilometer jadwal berikutnya tidak valid (masukkan bilangan bulat ≥ 0).')
+      return
+    }
     setSaving(true)
     setError(null)
     const costValue = cost.trim() === '' ? null : Number(cost)
@@ -119,6 +143,8 @@ function LogServiceDialog({ open, carId, addService, intervalDefaultsByType, onC
         description: description.trim() || null,
         service_date: serviceDate.format('YYYY-MM-DD'),
         next_due_date: nextDueDate ? nextDueDate.format('YYYY-MM-DD') : null,
+        service_mileage: sm.value,
+        next_due_mileage: ndm.value,
         cost: costValue != null && Number.isFinite(costValue) ? costValue : null,
         vendor: vendor.trim() || null,
         notes: notes.trim() || null,
@@ -208,6 +234,27 @@ function LogServiceDialog({ open, carId, addService, intervalDefaultsByType, onC
                 setNextDueTouched(true)
               }}
               slotProps={{ textField: { size: 'small', fullWidth: true } }}
+            />
+          </Box>
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+            <TextField
+              size="small"
+              label="Service mileage (km)"
+              value={serviceMileage}
+              onChange={(e) => setServiceMileage(e.target.value.replace(/\D/g, ''))}
+              inputMode="numeric"
+              fullWidth
+              helperText="Odometer saat service (opsional)."
+            />
+            <TextField
+              size="small"
+              label="Next due mileage (km, optional)"
+              value={nextDueMileage}
+              onChange={(e) => setNextDueMileage(e.target.value.replace(/\D/g, ''))}
+              inputMode="numeric"
+              fullWidth
+              helperText="Target KM untuk service berikutnya."
             />
           </Box>
 
@@ -334,7 +381,7 @@ export function CarServiceTab({ carId }: Props) {
         <Typography color="text.secondary">Belum ada riwayat service.</Typography>
       ) : (
         <ResponsiveTableContainer>
-          <Table size="small" sx={{ minWidth: 900 }}>
+          <Table size="small" sx={{ minWidth: 1040 }}>
             <TableHead>
               <TableRow>
                 <TableCell>Date</TableCell>
@@ -342,6 +389,8 @@ export function CarServiceTab({ carId }: Props) {
                 <TableCell>Service Type</TableCell>
                 <TableCell>Description</TableCell>
                 <TableCell>Next Due</TableCell>
+                <TableCell align="right">Service km</TableCell>
+                <TableCell align="right">Next km</TableCell>
                 <TableCell align="right">Cost</TableCell>
                 <TableCell>Vendor</TableCell>
                 <TableCell align="right">Actions</TableCell>
@@ -355,6 +404,12 @@ export function CarServiceTab({ carId }: Props) {
                   <TableCell>{SERVICE_TYPE_LABELS[row.service_type]}</TableCell>
                   <TableCell>{row.description ?? '—'}</TableCell>
                   <TableCell>{row.next_due_date ?? '—'}</TableCell>
+                  <TableCell align="right">
+                    {row.service_mileage != null ? row.service_mileage.toLocaleString('id-ID') : '—'}
+                  </TableCell>
+                  <TableCell align="right">
+                    {row.next_due_mileage != null ? row.next_due_mileage.toLocaleString('id-ID') : '—'}
+                  </TableCell>
                   <TableCell align="right">{row.cost != null ? formatIdr(Number(row.cost)) : '—'}</TableCell>
                   <TableCell>{row.vendor ?? '—'}</TableCell>
                   <TableCell align="right">

@@ -28,6 +28,8 @@ export interface CarService {
   description?: string
   service_date: string
   next_due_date?: string
+  service_mileage?: number
+  next_due_mileage?: number
   cost?: number
   vendor?: string
   notes?: string
