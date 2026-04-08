@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import PrintIcon from '@mui/icons-material/Print'
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'
-import GlobalStyles from '@mui/material/GlobalStyles'
 import {
   Box,
   Button,
@@ -32,6 +31,7 @@ import {
   receiptTotal,
 } from './rentalReceiptFormat'
 import { downloadRentalReceiptPdf } from './rentalReceiptPdf'
+import { printStandaloneReceipt } from './rentalReceiptPrint'
 
 type Props = {
   open: boolean
@@ -91,23 +91,6 @@ export function RentalReceiptDialog({ open, rental, onClose }: Props) {
 
   return (
     <>
-      {open ? (
-        <GlobalStyles
-          styles={{
-            '@media print': {
-              'body *': { visibility: 'hidden' },
-              '#rental-receipt-print-root, #rental-receipt-print-root *': { visibility: 'visible' },
-              '#rental-receipt-print-root': {
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                width: '100%',
-                background: '#fff',
-              },
-            },
-          }}
-        />
-      ) : null}
       <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth scroll="body">
         <DialogContent sx={{ pt: 3, pb: 1 }}>
           <Box id="rental-receipt-print-root" sx={{ maxWidth: 520, mx: 'auto' }}>
@@ -253,7 +236,10 @@ export function RentalReceiptDialog({ open, rental, onClose }: Props) {
           <Button onClick={onClose}>Batal</Button>
           <Box>
             <ButtonGroup variant="contained" ref={splitAnchorRef}>
-              <Button startIcon={<PrintIcon />} onClick={() => window.print()}>
+              <Button
+                startIcon={<PrintIcon />}
+                onClick={() => printStandaloneReceipt(rental, companyName)}
+              >
                 Cetak kuitansi
               </Button>
               <Button
