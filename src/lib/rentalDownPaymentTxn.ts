@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-/** Ledger income when down payment is collected at check-in (order path uses DB activate_order). */
+/** Ledger income for rental DP (check-in, order activation, or additional DP on an active rental). */
 export async function insertDownPaymentIncomeTransaction(
   supabase: SupabaseClient,
   carId: string,

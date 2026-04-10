@@ -541,6 +541,10 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const [cancelPassword, setCancelPassword] = useState('')
   const [cancelPasswordError, setCancelPasswordError] = useState<string | null>(null)
   const [verifyingCancelPassword, setVerifyingCancelPassword] = useState(false)
+  const [additionalDp, setAdditionalDp] = useState('')
+  const [addingDp, setAddingDp] = useState(false)
+  const [addDpModalOpen, setAddDpModalOpen] = useState(false)
+  const [addDpModalError, setAddDpModalError] = useState<string | null>(null)
 
   useEffect(() => {
     void supabase
@@ -702,6 +706,62 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     onCompleted()
   }
 
+  function openAddDpModal() {
+    setAddDpModalError(null)
+    setAdditionalDp('')
+    setAddDpModalOpen(true)
+  }
+
+  function closeAddDpModal() {
+    setAddDpModalOpen(false)
+    setAddDpModalError(null)
+    setAdditionalDp('')
+  }
+
+  async function handleAddDp() {
+    if (!selected?.car_id) return
+    const addAmount = Number(additionalDp.replace(/\D/g, '') || 0)
+    if (!Number.isFinite(addAmount) || addAmount <= 0) {
+      setAddDpModalError('Masukkan jumlah DP tambahan lebih dari 0 (IDR).')
+      return
+    }
+    const prev = Number(selected.down_payment ?? 0)
+    const next = prev + addAmount
+    setAddingDp(true)
+    setAddDpModalError(null)
+    setSuccess(null)
+
+    const { error: uErr } = await supabase
+      .from('v2_rentals')
+      .update({ down_payment: next })
+      .eq('id', selected.id)
+
+    if (uErr) {
+      setAddingDp(false)
+      setAddDpModalError(uErr.message)
+      return
+    }
+
+    const { error: dpErr } = await insertDownPaymentIncomeTransaction(
+      supabase,
+      selected.car_id,
+      selected.id,
+      addAmount,
+    )
+    if (dpErr) {
+      await supabase.from('v2_rentals').update({ down_payment: prev }).eq('id', selected.id)
+      setAddingDp(false)
+      setAddDpModalError(dpErr.message)
+      return
+    }
+
+    setAddingDp(false)
+    closeAddDpModal()
+    setSuccess(`DP bertambah ${formatIdr(addAmount)}. Total DP sekarang: ${formatIdr(next)}.`)
+    void loadActive()
+    onCompleted()
+  }
+
   function closeCancelPasswordDialog() {
     setCancelPasswordOpen(false)
     setCancelPassword('')
@@ -805,6 +865,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
             setCheckoutMileage('')
             setBlacklist(false)
             setBlacklistNote('')
+            setAdditionalDp('')
             setError(null)
           }}
           disabled={loadingRentals}
@@ -823,6 +884,18 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
       </FormControl>
 
       {selected ? (
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={openAddDpModal}
+          disabled={loadingRentals || busy || addingDp}
+          sx={{ alignSelf: 'flex-start' }}
+        >
+          Tambah DP (tanpa checkout)
+        </Button>
+      ) : null}
+
+      {selected ? (
         <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
             <Chip size="small" label={`Mulai: ${selected.start_date}`} />
@@ -833,6 +906,66 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
           </Box>
         </Paper>
       ) : null}
+
+      <Dialog
+        open={addDpModalOpen}
+        onClose={() => {
+          if (addingDp) return
+          closeAddDpModal()
+        }}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Tambah DP</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            Mencatat transaksi DP sewa dan menambah total DP pada sewa ini tanpa menyelesaikan checkout.
+            {selected ? (
+              <>
+                {' '}
+                DP saat ini:{' '}
+                <strong>{formatIdr(Number(selected.down_payment ?? 0))}</strong>
+              </>
+            ) : null}
+          </DialogContentText>
+          {addDpModalError ? (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setAddDpModalError(null)}>
+              {addDpModalError}
+            </Alert>
+          ) : null}
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            label="Jumlah DP tambahan (IDR)"
+            value={additionalDp}
+            onChange={(e) => {
+              setAdditionalDp(e.target.value.replace(/\D/g, ''))
+              if (addDpModalError) setAddDpModalError(null)
+            }}
+            inputMode="numeric"
+            disabled={addingDp}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                void handleAddDp()
+              }
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={closeAddDpModal} disabled={addingDp}>
+            Batal
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => void handleAddDp()}
+            disabled={addingDp || !additionalDp.replace(/\D/g, '')}
+          >
+            {addingDp ? 'Menyimpan…' : 'Simpan'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {checkInNote ? (
         <Box>
@@ -1015,13 +1148,18 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
               setCancelPassword('')
               setCancelPasswordOpen(true)
             }}
-            disabled={busy || !selectedId}
+            disabled={busy || addingDp || !selectedId}
             sx={{ mr: { sm: 'auto' } }}
           >
             Batalkan sewa
           </Button>
         ) : null}
-        <Button variant="contained" color="success" onClick={() => void handleComplete()} disabled={busy || !selectedId}>
+        <Button
+          variant="contained"
+          color="success"
+          onClick={() => void handleComplete()}
+          disabled={busy || addingDp || !selectedId}
+        >
           {busy ? 'Menyelesaikan…' : 'Selesaikan sewa'}
         </Button>
       </Box>
