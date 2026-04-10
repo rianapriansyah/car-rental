@@ -193,26 +193,47 @@ export function HomePage() {
     [selectedMonth],
   )
 
-  const monthRevenueBreakdown = useMemo(() => {
+  const rincianCashBreakdown = useMemo(() => {
     const month = selectedMonth
-    let fromRentalOwned = 0
-    let fromRentalFee = 0
+    let companyNet = 0
+    let partnerIncomeMinusOpsExclFee = 0
+    let partnerNettMitra = 0
+    let partnerRentalFee = 0
+
     for (const car of cars) {
       const txs = filterTransactionsByMonth(txByCar[car.id] ?? [], month)
       if (car.ownership_type === 'partner') {
-        fromRentalFee += sumRecordedRentalFeeFromTransactions(txs)
+        const monthIncome = sumMonthIncomeFromTransactions(txs)
+        const opsExclFee = sumOpsExpenseExcludingRentalFee(txs)
+        const feeRecorded = sumRecordedRentalFeeFromTransactions(txs)
+        partnerIncomeMinusOpsExclFee += monthIncome - opsExclFee
+        partnerNettMitra += monthIncome - opsExclFee - feeRecorded
+        partnerRentalFee += feeRecorded
       } else {
+        let income = 0
+        let expense = 0
         for (const t of txs) {
-          if (t.type === 'income') fromRentalOwned += Number(t.amount)
+          if (t.type === 'income') income += Number(t.amount)
+          else if (t.type === 'expense') expense += Number(t.amount)
         }
+        companyNet += income - expense
       }
     }
-    const total = fromRentalOwned + fromRentalFee
+
+    const totalCash = companyNet + partnerIncomeMinusOpsExclFee
     const monthLabel = dayjs(`${month}-01`).toDate().toLocaleString('id-ID', {
       month: 'long',
       year: 'numeric',
     })
-    return { month, monthLabel, total, fromRentalOwned, fromRentalFee }
+    return {
+      month,
+      monthLabel,
+      totalCash,
+      companyNet,
+      partnerIncomeMinusOpsExclFee,
+      partnerNettMitra,
+      partnerRentalFee,
+    }
   }, [cars, txByCar, selectedMonth])
 
   const chartData = useMemo(() => {
@@ -343,10 +364,10 @@ export function HomePage() {
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box>
                   <Typography variant="subtitle1" fontWeight={600}>
-                    Rincian pendapatan ({monthRevenueBreakdown.monthLabel})
+                    Rincian Cash ({rincianCashBreakdown.monthLabel})
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Total: {formatIdr(monthRevenueBreakdown.total)}
+                    Total: {formatIdr(rincianCashBreakdown.totalCash)}
                   </Typography>
                 </Box>
               </AccordionSummary>
@@ -354,20 +375,54 @@ export function HomePage() {
                 <List dense disablePadding>
                   <ListItem disableGutters sx={{ py: 0.5, alignItems: 'flex-start' }}>
                     <ListItemText
-                      primary="Dari sewa kendaraan milik perusahaan"
-                      secondary={formatIdr(monthRevenueBreakdown.fromRentalOwned)}
+                      primary="Dari sewa Kendaraan milik perusahaan"
+                      secondary={formatIdr(rincianCashBreakdown.companyNet)}
                       primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
                       secondaryTypographyProps={{ variant: 'body2' }}
                     />
                   </ListItem>
-                  <ListItem disableGutters sx={{ py: 0.5, alignItems: 'flex-start' }}>
-                    <ListItemText
-                      primary="Dari fee rental (kendaraan mitra)"
-                      secondary={formatIdr(monthRevenueBreakdown.fromRentalFee)}
-                      primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
-                      secondaryTypographyProps={{ variant: 'body2' }}
-                    />
-                  </ListItem>
+                  <Box sx={{ py: 0.5, width: '100%' }}>
+                    <Accordion
+                      disableGutters
+                      elevation={0}
+                      sx={{
+                        width: '100%',
+                        border: 1,
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        '&:before': { display: 'none' },
+                      }}
+                    >
+                      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                        <ListItemText
+                          primary="Dari sewa Kendaraan milik partner"
+                          secondary={formatIdr(rincianCashBreakdown.partnerIncomeMinusOpsExclFee)}
+                          primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
+                          secondaryTypographyProps={{ variant: 'body2' }}
+                        />
+                      </AccordionSummary>
+                      <AccordionDetails sx={{ pt: 0, pb: 1 }}>
+                        <List dense disablePadding sx={{ pl: 1 }}>
+                          <ListItem disableGutters sx={{ py: 0.5, alignItems: 'flex-start' }}>
+                            <ListItemText
+                              primary="Perkiraan Nett Mitra"
+                              secondary={formatIdr(rincianCashBreakdown.partnerNettMitra)}
+                              primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
+                              secondaryTypographyProps={{ variant: 'body2' }}
+                            />
+                          </ListItem>
+                          <ListItem disableGutters sx={{ py: 0.5, alignItems: 'flex-start' }}>
+                            <ListItemText
+                              primary="Perkiraan Rental Fee"
+                              secondary={formatIdr(rincianCashBreakdown.partnerRentalFee)}
+                              primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
+                              secondaryTypographyProps={{ variant: 'body2' }}
+                            />
+                          </ListItem>
+                        </List>
+                      </AccordionDetails>
+                    </Accordion>
+                  </Box>
                 </List>
               </AccordionDetails>
             </Accordion>

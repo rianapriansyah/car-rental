@@ -4,6 +4,11 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   FormControl,
   FormControlLabel,
   InputLabel,
@@ -532,8 +537,10 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const [success, setSuccess] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false)
-  // Recompute elapsed time periodically so the under-1h cancel rule stays accurate.
-  const [nowTick, setNowTick] = useState(0)
+  const [cancelPasswordOpen, setCancelPasswordOpen] = useState(false)
+  const [cancelPassword, setCancelPassword] = useState('')
+  const [cancelPasswordError, setCancelPasswordError] = useState<string | null>(null)
+  const [verifyingCancelPassword, setVerifyingCancelPassword] = useState(false)
 
   useEffect(() => {
     void supabase
@@ -561,24 +568,8 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     void loadActive()
   }, [loadActive, refreshTick])
 
-  useEffect(() => {
-    if (!selectedId) return
-    const id = window.setInterval(() => setNowTick((n) => n + 1), 30_000)
-    return () => clearInterval(id)
-  }, [selectedId])
-
   const selected = activeRentals.find((r) => r.id === selectedId) ?? null
 
-  const elapsedHoursSinceStart = useMemo(() => {
-    if (!selected?.start_date) return null
-    return calcElapsedHours(selected.start_date, selected.start_time ?? null, dayjs())
-  }, [selected, nowTick])
-
-  const canCancelEarlyRent =
-    Boolean(selected) &&
-    elapsedHoursSinceStart != null &&
-    elapsedHoursSinceStart >= 0 &&
-    elapsedHoursSinceStart < 1
   const downPayment = Number(selected?.down_payment ?? 0)
   const checkInNote = selected?.manual_note ?? ''
   const completionMoment = useMemo<Dayjs | null>(() => {
@@ -711,14 +702,43 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     onCompleted()
   }
 
-  async function handleCancelEarlyRent() {
-    if (!selected) return
-    const elapsed = calcElapsedHours(selected.start_date, selected.start_time ?? null, dayjs())
-    if (elapsed >= 1 || elapsed < 0) {
-      setError('Batalkan sewa hanya bisa dilakukan jika sewa berjalan kurang dari 1 jam.')
-      setConfirmCancelOpen(false)
+  function closeCancelPasswordDialog() {
+    setCancelPasswordOpen(false)
+    setCancelPassword('')
+    setCancelPasswordError(null)
+  }
+
+  async function verifyCancelPasswordAndOpenConfirm() {
+    setCancelPasswordError(null)
+    const pwd = cancelPassword
+    if (!pwd) {
+      setCancelPasswordError('Masukkan kata sandi akun Anda.')
       return
     }
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+    if (userError || !user?.email) {
+      setCancelPasswordError(userError?.message ?? 'Tidak dapat memverifikasi pengguna. Silakan login ulang.')
+      return
+    }
+    setVerifyingCancelPassword(true)
+    const { error: signError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: pwd,
+    })
+    setVerifyingCancelPassword(false)
+    if (signError) {
+      setCancelPasswordError('Kata sandi salah.')
+      return
+    }
+    closeCancelPasswordDialog()
+    setConfirmCancelOpen(true)
+  }
+
+  async function handleCancelEarlyRent() {
+    if (!selected) return
     setConfirmCancelOpen(false)
     setBusy(true)
     setError(null)
@@ -969,10 +989,10 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         />
       ) : null}
 
-      {canCancelEarlyRent && selected ? (
+      {selected ? (
         <Alert severity="info" variant="outlined">
-          Batalkan sewa tersedia karena masa sewa belum 1 jam (sejak mulai). Data penyewa di Info Penyewa tetap
-          tersimpan.
+          Membatalkan sewa memerlukan kata sandi akun internal Anda, lalu konfirmasi. Data penyewa di Info Penyewa
+          tetap tersimpan.
         </Alert>
       ) : null}
 
@@ -986,21 +1006,75 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
           mt: 1,
         }}
       >
-        {canCancelEarlyRent ? (
+        {selected ? (
           <Button
             variant="outlined"
             color="error"
-            onClick={() => setConfirmCancelOpen(true)}
+            onClick={() => {
+              setCancelPasswordError(null)
+              setCancelPassword('')
+              setCancelPasswordOpen(true)
+            }}
             disabled={busy || !selectedId}
             sx={{ mr: { sm: 'auto' } }}
           >
-            Batalkan sewa (&lt; 1 jam)
+            Batalkan sewa
           </Button>
         ) : null}
         <Button variant="contained" color="success" onClick={() => void handleComplete()} disabled={busy || !selectedId}>
           {busy ? 'Menyelesaikan…' : 'Selesaikan sewa'}
         </Button>
       </Box>
+
+      <Dialog
+        open={cancelPasswordOpen}
+        onClose={() => {
+          if (verifyingCancelPassword) return
+          closeCancelPasswordDialog()
+        }}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Konfirmasi kata sandi</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            Masukkan kata sandi akun Anda untuk melanjutkan pembatalan sewa.
+          </DialogContentText>
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            type="password"
+            label="Kata sandi"
+            value={cancelPassword}
+            onChange={(e) => {
+              setCancelPassword(e.target.value)
+              if (cancelPasswordError) setCancelPasswordError(null)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                void verifyCancelPasswordAndOpenConfirm()
+              }
+            }}
+            error={Boolean(cancelPasswordError)}
+            helperText={cancelPasswordError ?? undefined}
+            autoComplete="current-password"
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={closeCancelPasswordDialog} disabled={verifyingCancelPassword}>
+            Batal
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => void verifyCancelPasswordAndOpenConfirm()}
+            disabled={verifyingCancelPassword}
+          >
+            {verifyingCancelPassword ? 'Memverifikasi…' : 'Lanjutkan'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <ConfirmDialog
         open={confirmCancelOpen}
