@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { getCarStatusChipProps } from '../../lib/statusChips'
 import { formatIdr } from '../../lib/formatIdr'
+import { buildWhatsAppMeUrlWithMessage } from '../../lib/whatsappLink'
 import type { CarRow } from '../../types/car'
 import type { RentalRow } from '../../types/rental'
 
@@ -158,27 +159,33 @@ export function PublicFleetPage() {
   const [cars, setCars] = useState<FleetCar[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  /** `admin_number` setting, digits only — used to build wa.me links per card with car-specific text. */
+  const [adminWhatsAppRaw, setAdminWhatsAppRaw] = useState<string | null>(null)
 
   const fetchFleet = useCallback(async () => {
     setLoading(true)
     setError(null)
 
-    const { data: carData, error: carError } = await supabase
-      .from('v2_cars')
-      .select('*')
-      .is('deleted_at', null)
-      .order('name')
+    const [
+      { data: carData, error: carError },
+      { data: rentalData, error: rentalError },
+      { data: adminRow },
+    ] = await Promise.all([
+      supabase.from('v2_cars').select('*').is('deleted_at', null).order('name'),
+      supabase
+        .from('v2_rentals')
+        .select('car_id, start_date, start_time, end_date, duration_days, status')
+        .eq('status', 'active'),
+      supabase.from('v2_app_settings').select('value').eq('key', 'admin_number').maybeSingle(),
+    ])
+
+    setAdminWhatsAppRaw(adminRow?.value?.trim() ? adminRow.value.trim() : null)
 
     if (carError) {
       setError(carError.message)
       setLoading(false)
       return
     }
-
-    const { data: rentalData, error: rentalError } = await supabase
-      .from('v2_rentals')
-      .select('car_id, start_date, start_time, end_date, duration_days, status')
-      .eq('status', 'active')
 
     if (rentalError) {
       setError(rentalError.message)
@@ -263,6 +270,8 @@ export function PublicFleetPage() {
               const rentalDisplay = getRentalDisplay(car.activeRental)
               const imageItems = [{ img: car.photo_url, title: car.name, subtitle: car.plate }]
               const statusChip = getCarStatusChipProps(car.status, 'en')
+              const inquiryText = `Halo, saya ingin bertanya mengenai kendaraan berikut:\nNama: ${car.name}\nPlat nomor: ${car.plate}`
+              const waHref = buildWhatsAppMeUrlWithMessage(adminWhatsAppRaw, inquiryText)
 
               return (
                 <Card key={car.id} variant="outlined" sx={{ height: '100%', overflow: 'hidden' }}>
@@ -270,6 +279,51 @@ export function PublicFleetPage() {
                     {imageItems.map((item) => (
                       <ImageListItem key={item.img ?? `${car.id}-no-photo`} sx={{ height: '100% !important', overflow: 'hidden', position: 'relative' }}>
                         <FleetCardImage src={item.img} alt={item.title} />
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: 8,
+                            right: 8,
+                            zIndex: 2,
+                          }}
+                        >
+                          {waHref ? (
+                            <Button
+                              variant="contained"
+                              size="small"
+                              color="success"
+                              component="a"
+                              href={waHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              sx={{
+                                textTransform: 'none',
+                                fontSize: '0.75rem',
+                                py: 0.25,
+                                px: 1,
+                                boxShadow: 2,
+                              }}
+                            >
+                              Pesan
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="contained"
+                              size="small"
+                              color="success"
+                              disabled
+                              sx={{
+                                textTransform: 'none',
+                                fontSize: '0.75rem',
+                                py: 0.25,
+                                px: 1,
+                                boxShadow: 2,
+                              }}
+                            >
+                              Pesan
+                            </Button>
+                          )}
+                        </Box>
                         <ImageListItemBar
                           title={item.title}
                           subtitle={
