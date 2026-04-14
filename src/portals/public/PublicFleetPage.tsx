@@ -8,13 +8,20 @@ import {
   Chip,
   CircularProgress,
   Container,
+  Divider,
+  Fab,
+  IconButton,
   ImageList,
   ImageListItem,
   ImageListItemBar,
+  Link,
   Toolbar,
   Typography,
 } from '@mui/material'
-import { useNavigate } from 'react-router-dom'
+import { Link as RouterLink } from 'react-router-dom'
+import Instagram from '@mui/icons-material/Instagram'
+import KeyboardArrowUp from '@mui/icons-material/KeyboardArrowUp'
+import OpenInNew from '@mui/icons-material/OpenInNew'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import { supabase } from '../../lib/supabase'
 import { getCarStatusChipProps } from '../../lib/statusChips'
@@ -156,12 +163,12 @@ function getRentalDisplay(rental: FleetCar['activeRental']): { returnDateLabel: 
 
 export function PublicFleetPage() {
   const cardMediaHeight = { xs: 320, sm: 320, md: 320 }
-  const navigate = useNavigate()
   const [cars, setCars] = useState<FleetCar[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   /** `admin_number` setting, digits only — used to build wa.me links per card with car-specific text. */
   const [adminWhatsAppRaw, setAdminWhatsAppRaw] = useState<string | null>(null)
+  const [instagramUrl, setInstagramUrl] = useState<string | null>(null)
 
   const fetchFleet = useCallback(async () => {
     setLoading(true)
@@ -170,17 +177,24 @@ export function PublicFleetPage() {
     const [
       { data: carData, error: carError },
       { data: rentalData, error: rentalError },
-      { data: adminRow },
+      { data: settingsRows, error: settingsError },
     ] = await Promise.all([
       supabase.from('v2_cars').select('*').is('deleted_at', null).order('name'),
       supabase
         .from('v2_rentals')
         .select('car_id, start_date, start_time, end_date, duration_days, status')
         .eq('status', 'active'),
-      supabase.from('v2_app_settings').select('value').eq('key', 'admin_number').maybeSingle(),
+      supabase.from('v2_app_settings').select('key, value').in('key', ['admin_number', 'instagram_url']),
     ])
 
-    setAdminWhatsAppRaw(adminRow?.value?.trim() ? adminRow.value.trim() : null)
+    if (!settingsError && settingsRows?.length) {
+      const sm = new Map(settingsRows.map((r) => [r.key, r.value]))
+      setAdminWhatsAppRaw(String(sm.get('admin_number') ?? '').trim() || null)
+      setInstagramUrl(String(sm.get('instagram_url') ?? '').trim() || null)
+    } else {
+      setAdminWhatsAppRaw(null)
+      setInstagramUrl(null)
+    }
 
     if (carError) {
       setError(carError.message)
@@ -231,9 +245,6 @@ export function PublicFleetPage() {
           <Typography variant="h6" sx={{ flexGrow: 1, minWidth: '40%', fontSize: { xs: '1rem', sm: '1.25rem' } }}>
             Public fleet
           </Typography>
-          <Button variant="outlined" size="small" onClick={() => navigate('/login')}>
-            Masuk
-          </Button>
         </Toolbar>
       </AppBar>
       <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3 }, px: { xs: 2, sm: 3 }, bgcolor: 'background.default' }}>
@@ -384,7 +395,97 @@ export function PublicFleetPage() {
             })}
           </Box>
         )}
+
+        <Divider variant="middle" sx={{ my: { xs: 3, sm: 4 } }} />
+
+        <Box
+          component="footer"
+          sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 0.75,
+            rowGap: 0.5,
+            py: 2,
+            px: 1,
+            fontSize: '0.8rem',
+          }}
+        >
+          <Typography
+            component="span"
+            variant="inherit"
+            sx={{ fontStyle: 'italic', color: 'text.secondary', textAlign: 'center', maxWidth: '100%' }}
+          >
+            — Rental Safir Bambalemo Parigi Moutong, Sulawesi Tengah —
+          </Typography>
+          <Typography
+            component="span"
+            aria-hidden
+            sx={{ color: 'text.disabled', userSelect: 'none', lineHeight: 1, mx: 0.25 }}
+          >
+            ·
+          </Typography>
+          <Link
+            component={RouterLink}
+            to="/login"
+            underline="hover"
+            variant="inherit"
+            color="primary"
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.35,
+              fontSize: '0.8rem',
+              fontWeight: 500,
+            }}
+          >
+            Admin Area
+            <OpenInNew sx={{ fontSize: '0.95em', opacity: 0.85 }} />
+          </Link>
+        </Box>
+
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 2,
+            pb: { xs: 6, sm: 7 },
+          }}
+        >
+          {instagramUrl ? (
+            <IconButton
+              component="a"
+              href={instagramUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Instagram"
+              size="medium"
+              sx={{ color: 'text.secondary' }}
+            >
+              <Instagram sx={{ fontSize: '1.5rem' }} />
+            </IconButton>
+          ) : null}
+        </Box>
       </Container>
+
+      <Fab
+        color="primary"
+        size="medium"
+        aria-label="Kembali ke atas"
+        onClick={() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }}
+        sx={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          zIndex: (theme) => theme.zIndex.drawer + 2,
+        }}
+      >
+        <KeyboardArrowUp />
+      </Fab>
     </Box>
   )
 }
