@@ -173,14 +173,16 @@ export function OrderDetailDialog({
               <DetailField label="Telepon" value={row.renter_phone ?? '—'} />
               <DetailField label="Mulai" value={row.start_date} />
               <DetailField label="Jam mulai" value={row.start_time ?? '—'} />
-              <DetailField label="Selesai" value={row.end_date} />
+              <DetailField label="Selesai" value={row.end_date ?? '—'} />
               <DetailField label="Durasi (hari)" value={row.duration_days != null ? String(row.duration_days) : '—'} />
               <DetailField
                 label="Referensi tarif"
                 value={
-                  row.v2_cars?.daily_rate != null && row.duration_days != null
-                    ? `${formatIdr(Number(row.v2_cars.daily_rate) * row.duration_days)} (${row.duration_days} hari x ${formatIdr(Number(row.v2_cars.daily_rate))})`
-                    : '—'
+                  row.v2_cars?.daily_rate == null
+                    ? '—'
+                    : row.duration_days != null
+                      ? `${formatIdr(Number(row.v2_cars.daily_rate) * row.duration_days)} (${row.duration_days} hari × ${formatIdr(Number(row.v2_cars.daily_rate))})`
+                      : `${formatIdr(Number(row.v2_cars.daily_rate))} / hari`
                 }
               />
               <DetailField

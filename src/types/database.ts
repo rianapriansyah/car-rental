@@ -152,7 +152,7 @@ export type Database = {
           status: string
           start_date: string
           start_time: string | null
-          end_date: string
+          end_date: string | null
           duration_days: number | null
           estimated_income: number | null
           deposit_amount: number | null
@@ -173,7 +173,7 @@ export type Database = {
           status?: string
           start_date: string
           start_time?: string | null
-          end_date: string
+          end_date?: string | null
           duration_days?: number | null
           estimated_income?: number | null
           deposit_amount?: number | null
@@ -194,7 +194,7 @@ export type Database = {
           status?: string
           start_date?: string
           start_time?: string | null
-          end_date?: string
+          end_date?: string | null
           duration_days?: number | null
           estimated_income?: number | null
           deposit_amount?: number | null
@@ -474,7 +474,7 @@ export type Database = {
       }
       check_car_availability: {
         Args: { p_car_id: string; p_start: string; p_end: string }
-        Returns: { source: string; start_date: string; end_date: string; renter_name: string | null }[]
+        Returns: { source: string; start_date: string; end_date: string | null; renter_name: string | null }[]
       }
       claim_partner_for_current_user: {
         Args: Record<PropertyKey, never>

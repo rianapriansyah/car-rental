@@ -104,7 +104,12 @@ export function OrdersListPage() {
         width: 100,
         valueGetter: (_v, row) => row.start_time ?? '—',
       },
-      { field: 'end_date', headerName: 'Selesai', width: 120 },
+      {
+        field: 'end_date',
+        headerName: 'Selesai',
+        width: 120,
+        valueGetter: (_v, row) => row.end_date ?? '—',
+      },
       {
         field: 'duration_days',
         headerName: 'Durasi',

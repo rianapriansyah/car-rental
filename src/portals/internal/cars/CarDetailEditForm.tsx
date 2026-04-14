@@ -41,6 +41,7 @@ export function CarDetailEditForm({
   const [ownershipType, setOwnershipType] = useState<'rental' | 'partner'>('rental')
   const [partnerId, setPartnerId] = useState<string>('')
   const [hasGps, setHasGps] = useState(false)
+  const [mileage, setMileage] = useState('')
   const [dailyRate, setDailyRate] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState('')
@@ -61,6 +62,7 @@ export function CarDetailEditForm({
     setOwnershipType((car?.ownership_type as 'rental' | 'partner') ?? 'rental')
     setPartnerId(car?.partner_id ?? '')
     setHasGps(car?.has_gps ?? false)
+    setMileage(car?.mileage != null ? String(Math.round(Number(car.mileage))) : '')
     setDailyRate(car?.daily_rate != null ? String(car.daily_rate) : '')
     setPhotoFile(null)
     setPhotoPreview('')
@@ -87,6 +89,16 @@ export function CarDetailEditForm({
     if (ownershipType === 'partner' && !partnerId) {
       setError('Pilih mitra untuk kendaraan milik mitra.')
       return
+    }
+    const mileageTrim = mileage.trim()
+    let mileageKm: number | null = null
+    if (mileageTrim !== '') {
+      const n = Number(mileageTrim.replace(/\D/g, ''))
+      if (!Number.isFinite(n) || n < 0) {
+        setError('Kilometer (odometer) harus berupa bilangan bulat ≥ 0.')
+        return
+      }
+      mileageKm = Math.round(n)
     }
     setSaving(true)
     setError(null)
@@ -121,6 +133,7 @@ export function CarDetailEditForm({
       ownership_type: ownershipType,
       partner_id: ownershipType === 'partner' && partnerId ? partnerId : null,
       has_gps: hasGps,
+      mileage: mileageKm,
       daily_rate: dailyRateValue != null && Number.isFinite(dailyRateValue) ? dailyRateValue : null,
       photo_url: photoFile ? nextPhotoUrl : car ? car.photo_url : null,
       notes: notes.trim() || null,
@@ -261,6 +274,16 @@ export function CarDetailEditForm({
         fullWidth
         sx={{ mb: 2 }}
         slotProps={{ htmlInput: { min: 0 } }}
+      />
+      <TextField
+        size="small"
+        label="Kilometer (odometer)"
+        value={mileage}
+        onChange={(e) => setMileage(e.target.value.replace(/\D/g, ''))}
+        inputMode="numeric"
+        fullWidth
+        sx={{ mb: 2 }}
+        helperText="Opsional. Terakhir diketahui untuk referensi sewa dan service."
       />
       <Box sx={{ mb: 2 }}>
         <Button component="label" variant="outlined" fullWidth>

@@ -26,7 +26,7 @@ export function formatAvailabilityConflictLines(rows: AvailabilityConflict[]): s
       const who = (r.renter_name?.trim() || 'Tanpa nama').trim()
       const kind = SOURCE_LABEL[r.source] ?? r.source
       const startLbl = formatIdLongDate(r.start_date)
-      const endLbl = formatIdLongDate(r.end_date)
+      const endLbl = r.end_date ? formatIdLongDate(r.end_date) : 'belum ditentukan'
       return `${kind} · ${who}: ${startLbl} – ${endLbl}`
     })
     .join('\n')

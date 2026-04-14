@@ -38,6 +38,11 @@ export function RenterNamePhoneFields({
     notifyBlacklist(r.status === RENTER_BLACKLIST_STATUS)
   }
 
+  /** Autocomplete passes getOptionLabel (name · phone) on reset; map back to the row so we only store name/phone separately. */
+  function resolvePickFromResetLabel(v: string): RenterInfoPick | null {
+    return options.find((o) => optionLabel(o) === v) ?? null
+  }
+
   useEffect(() => {
     const q = (activeFieldRef.current === 'name' ? name : phone).trim()
     if (q.length < 1) {
@@ -70,6 +75,13 @@ export function RenterNamePhoneFields({
         onInputChange={(_, v, reason) => {
           activeFieldRef.current = 'name'
           if (reason === 'input' || reason === 'clear') notifyBlacklist(false)
+          if (reason === 'reset') {
+            const pick = resolvePickFromResetLabel(v)
+            if (pick) {
+              applyPick(pick)
+              return
+            }
+          }
           onNameChange(v)
         }}
         onChange={(_, v) => {
@@ -101,6 +113,13 @@ export function RenterNamePhoneFields({
         onInputChange={(_, v, reason) => {
           activeFieldRef.current = 'phone'
           if (reason === 'input' || reason === 'clear') notifyBlacklist(false)
+          if (reason === 'reset') {
+            const pick = resolvePickFromResetLabel(v)
+            if (pick) {
+              applyPick(pick)
+              return
+            }
+          }
           onPhoneChange(v)
         }}
         onChange={(_, v) => {

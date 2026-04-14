@@ -30,6 +30,9 @@ import { fetchOrderWarningDays } from '../../../lib/orderAppSettings'
 import { ensureRenterInInfo, isRenterBlacklisted } from '../../../lib/renterInfoHelpers'
 import { formatIdr } from '../../../lib/formatIdr'
 
+/** Upper bound for availability RPC when end date is not set (open-ended request window). */
+const AVAILABILITY_OPEN_END = '9999-12-31'
+
 type CarOption = { id: string; name: string; plate: string; daily_rate: number | null }
 
 type Props = {
@@ -67,7 +70,8 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
     [cars, carId],
   )
 
-  const tariffReference = useMemo(() => {
+  /** Total IDR when both daily rate and duration are known. */
+  const tariffTotalEstimate = useMemo(() => {
     if (!selectedCar || selectedCar.daily_rate == null || durationDays == null) return null
     return Math.round(Number(selectedCar.daily_rate) * durationDays)
   }, [selectedCar, durationDays])
@@ -105,13 +109,13 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
   const runAvailabilityChecks = useCallback(async () => {
     setHardConflict(null)
     setSoftWarning(null)
-    if (!carId || !startDate || !endDate) return
-    if (endDate.isBefore(startDate, 'day')) {
+    if (!carId || !startDate) return
+    if (endDate && endDate.isBefore(startDate, 'day')) {
       setHardConflict('Tanggal selesai tidak boleh sebelum tanggal mulai.')
       return
     }
     const startStr = startDate.format('YYYY-MM-DD')
-    const endStr = endDate.format('YYYY-MM-DD')
+    const endStr = endDate ? endDate.format('YYYY-MM-DD') : AVAILABILITY_OPEN_END
     const { rows, error: avErr } = await checkCarAvailability(carId, startStr, endStr)
     if (avErr) {
       setHardConflict(avErr.message)
@@ -147,11 +151,11 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
   async function submit() {
     setError(null)
     const startTimeStr = startTime?.format('HH:mm') ?? ''
-    if (!carId || !renterName.trim() || !startDate || !startTime || !endDate) {
-      setError('Kendaraan, nama penyewa, tanggal mulai, jam mulai, dan tanggal selesai wajib diisi.')
+    if (!carId || !renterName.trim() || !startDate || !startTime) {
+      setError('Kendaraan, nama penyewa, tanggal mulai, dan jam mulai wajib diisi.')
       return
     }
-    if (endDate.isBefore(startDate, 'day')) {
+    if (endDate && endDate.isBefore(startDate, 'day')) {
       setError('Tanggal selesai tidak boleh sebelum tanggal mulai.')
       return
     }
@@ -169,7 +173,7 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
       return
     }
     const startStr = startDate.format('YYYY-MM-DD')
-    const endStr = endDate.format('YYYY-MM-DD')
+    const endStr = endDate ? endDate.format('YYYY-MM-DD') : AVAILABILITY_OPEN_END
     const { rows: again, error: avErr } = await checkCarAvailability(carId, startStr, endStr)
     if (avErr) {
       setError(avErr.message)
@@ -180,7 +184,8 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
       return
     }
 
-    const dur = calcOrderDurationDays(startDate, endDate, startTimeStr)
+    const dur =
+      endDate && startDate && startTime ? calcOrderDurationDays(startDate, endDate, startTimeStr) : null
     const dep = depositAmount.replace(/\D/g, '')
     const depNum = dep === '' ? null : Number(dep)
     if (depNum !== null && (!Number.isFinite(depNum) || depNum < 0)) {
@@ -209,7 +214,7 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
         status: 'confirmed',
         start_date: startStr,
         start_time: startTimeStr,
-        end_date: endStr,
+        end_date: endDate ? endDate.format('YYYY-MM-DD') : null,
         duration_days: dur,
         deposit_amount: depNum,
         deposit_paid: depositPaid,
@@ -295,11 +300,11 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
               slotProps={{ textField: { fullWidth: true, required: true, size: 'small' } }}
             />
             <DatePicker
-              label="Tanggal selesai"
+              label="Tanggal selesai (opsional)"
               value={endDate}
               onChange={(v) => setEndDate(v)}
               disabled={saving}
-              slotProps={{ textField: { fullWidth: true, required: true, size: 'small' } }}
+              slotProps={{ textField: { fullWidth: true, required: false, size: 'small' } }}
             />
             <TimePicker
               label="Jam mulai"
@@ -316,7 +321,11 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
             value={durationDays != null ? String(durationDays) : '—'}
             fullWidth
             disabled
-            helperText="Dihitung dari selisih waktu sejak jam mulai."
+            helperText={
+              !endDate
+                ? 'Isi tanggal selesai untuk menghitung durasi (dari jam mulai).'
+                : 'Dihitung dari selisih waktu sejak jam mulai.'
+            }
           />
 
           <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
@@ -327,17 +336,25 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
             >
               Referensi Tarif
             </Typography>
-            {tariffReference != null && selectedCar?.daily_rate != null && durationDays != null ? (
-              <Typography variant="body2">
-                {formatIdr(tariffReference)} ({durationDays} hari x {formatIdr(Number(selectedCar.daily_rate))})
+            {!carId ? (
+              <Typography variant="body2" color="text.secondary">
+                Pilih kendaraan untuk melihat referensi tarif.
               </Typography>
             ) : selectedCar?.daily_rate == null ? (
               <Typography variant="body2" color="text.secondary">
                 Tarif harian kendaraan belum diatur.
               </Typography>
+            ) : tariffTotalEstimate != null && durationDays != null ? (
+              <Typography variant="body2">
+                {formatIdr(tariffTotalEstimate)} ({durationDays} hari × {formatIdr(Number(selectedCar.daily_rate))})
+              </Typography>
+            ) : !endDate ? (
+              <Typography variant="body2">
+                Tarif harian: <strong>{formatIdr(Number(selectedCar.daily_rate))}</strong> / hari
+              </Typography>
             ) : (
               <Typography variant="body2" color="text.secondary">
-                Pilih tanggal untuk melihat referensi tarif.
+                Lengkapi tanggal mulai dan jam mulai untuk estimasi total.
               </Typography>
             )}
           </Paper>

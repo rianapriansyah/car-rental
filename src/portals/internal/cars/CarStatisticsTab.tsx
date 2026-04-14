@@ -208,11 +208,15 @@ export function CarStatisticsTab({ carId }: Props) {
       .filter((s) => s.service_date >= `${key}-01` && s.service_date <= selectedMonth.endOf('month').format('YYYY-MM-DD'))
       .reduce((acc, s) => acc + (s.cost ?? 0), 0)
 
-    const completedInMonth = orders.filter((o) => dayjs(o.end_date).format('YYYY-MM') === key)
+    const completedInMonth = orders.filter(
+      (o) => o.end_date && dayjs(o.end_date).format('YYYY-MM') === key,
+    )
 
     const occSources =
       orders.length > 0
-        ? orders.map((o) => ({ start_date: o.start_date, end_date: o.end_date }))
+        ? orders
+            .filter((o) => o.end_date)
+            .map((o) => ({ start_date: o.start_date, end_date: o.end_date as string }))
         : rentals
             .filter((r) => r.end_date)
             .map((r) => ({ start_date: r.start_date, end_date: r.end_date as string }))
@@ -250,7 +254,9 @@ export function CarStatisticsTab({ carId }: Props) {
   const lineData = useMemo(() => {
     const occSources =
       orders.length > 0
-        ? orders.map((o) => ({ start_date: o.start_date, end_date: o.end_date }))
+        ? orders
+            .filter((o) => o.end_date)
+            .map((o) => ({ start_date: o.start_date, end_date: o.end_date as string }))
         : rentals
             .filter((r) => r.end_date)
             .map((r) => ({ start_date: r.start_date, end_date: r.end_date as string }))
@@ -287,7 +293,9 @@ export function CarStatisticsTab({ carId }: Props) {
     const maintenance = services
       .filter((s) => s.service_date >= `${key}-01` && s.service_date <= selectedMonth.endOf('month').format('YYYY-MM-DD'))
       .reduce((acc, s) => acc + (s.cost ?? 0), 0)
-    const ordersCount = orders.filter((o) => dayjs(o.end_date).format('YYYY-MM') === key).length
+    const ordersCount = orders.filter(
+      (o) => o.end_date && dayjs(o.end_date).format('YYYY-MM') === key,
+    ).length
     return gross === 0 && maintenance === 0 && ordersCount === 0
   }, [orders, selectedMonth, services, txsByMonth])
 

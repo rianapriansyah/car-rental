@@ -97,13 +97,6 @@ export function CarsPage() {
       },
       { field: 'ownership_type', headerName: 'Kepemilikan', width: 130 },
       {
-        field: 'partner',
-        headerName: 'Mitra',
-        flex: 1,
-        minWidth: 120,
-        valueGetter: (_v, row) => row.v2_partners?.name ?? '—',
-      },
-      {
         field: 'status',
         headerName: 'Status',
         width: 130,
@@ -111,12 +104,6 @@ export function CarsPage() {
           const { label, color } = getCarStatusChipProps(params.row.status)
           return <Chip size="small" label={label} color={color} sx={statusChipSx} />
         },
-      },
-      {
-        field: 'has_gps',
-        headerName: 'GPS',
-        width: 90,
-        valueGetter: (_v, row) => (row.has_gps ? 'Ya' : 'Tidak'),
       },
       {
         field: 'actions',
@@ -198,9 +185,13 @@ export function CarsPage() {
               pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
               disableRowSelectionOnClick
               autoHeight
+              onRowClick={(params) => {
+                navigate(`/internal/cars/${params.id}`)
+              }}
               getRowClassName={(params) => (params.row.deleted_at ? 'cars-row-deleted' : '')}
               sx={{
                 border: 'none',
+                '& .MuiDataGrid-row': { cursor: 'pointer' },
                 '& .cars-row-deleted': { opacity: 0.5 },
               }}
             />

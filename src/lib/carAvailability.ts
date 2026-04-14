@@ -4,7 +4,8 @@ import { supabase } from './supabase'
 export type AvailabilityConflict = {
   source: string
   start_date: string
-  end_date: string
+  /** Null when the booking is open-ended (no fixed end date). */
+  end_date: string | null
   /** Penyewa pada pesanan/sewa yang bentrok (dari RPC setelah migrasi). */
   renter_name: string | null
 }
@@ -25,7 +26,7 @@ export async function checkCarAvailability(
     return {
       source: row.source,
       start_date: row.start_date,
-      end_date: row.end_date,
+      end_date: row.end_date ?? null,
       renter_name: row.renter_name ?? null,
     }
   })
