@@ -15,6 +15,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
+import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import { supabase } from '../../lib/supabase'
 import { getCarStatusChipProps } from '../../lib/statusChips'
 import { formatIdr } from '../../lib/formatIdr'
@@ -296,6 +297,7 @@ export function PublicFleetPage() {
                               href={waHref}
                               target="_blank"
                               rel="noopener noreferrer"
+                              startIcon={<WhatsAppIcon sx={{ fontSize: '1rem' }} />}
                               sx={{
                                 textTransform: 'none',
                                 fontSize: '0.75rem',
@@ -312,6 +314,7 @@ export function PublicFleetPage() {
                               size="small"
                               color="success"
                               disabled
+                              startIcon={<WhatsAppIcon sx={{ fontSize: '1rem' }} />}
                               sx={{
                                 textTransform: 'none',
                                 fontSize: '0.75rem',
