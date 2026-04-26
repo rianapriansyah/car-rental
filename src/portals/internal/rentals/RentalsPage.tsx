@@ -12,6 +12,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { InternalCarMonthFilter } from '../../../components/InternalCarMonthFilter'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
@@ -23,6 +24,14 @@ import { CompleteRentalDialog } from './CompleteRentalDialog'
 import { RentalReceiptDialog } from './RentalReceiptDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 import { getRentalStatusChipProps, RENTAL_STATUS_LABELS, statusChipSx } from '../../../lib/statusChips'
+
+type RentalsPageProps = {
+  /**
+   * When provided, the page operates in embedded mode (e.g. inside the Car detail tabs):
+   * the car selector is hidden, results are locked to this car, and the page heading is omitted.
+   */
+  carId?: string
+}
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
@@ -65,11 +74,12 @@ function completionLabel(row: RentalWithCar): string {
   return row.end_time ? `${row.end_date} ${row.end_time}` : row.end_date
 }
 
-export function RentalsPage() {
+export function RentalsPage({ carId: lockedCarId }: RentalsPageProps = {}) {
+  const isEmbedded = Boolean(lockedCarId)
   const [searchParams, setSearchParams] = useSearchParams()
-  const rentalIdParam = searchParams.get('rentalId')
+  const rentalIdParam = isEmbedded ? null : searchParams.get('rentalId')
   const [cars, setCars] = useState<CarOption[]>([])
-  const [carId, setCarId] = useState('')
+  const [carId, setCarId] = useState(lockedCarId ?? '')
   const [month, setMonth] = useState(() => dayjs().startOf('month'))
   const scopeMonthYyyyMm = month.format('YYYY-MM')
   const [rows, setRows] = useState<RentalWithCar[]>([])
@@ -81,6 +91,7 @@ export function RentalsPage() {
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
   const loadCars = useCallback(async () => {
+    if (isEmbedded) return
     const { data, error: qError } = await supabase
       .from('v2_cars')
       .select('id, name, plate')
@@ -92,7 +103,7 @@ export function RentalsPage() {
     }
     const list = (data ?? []) as CarOption[]
     setCars(list)
-  }, [])
+  }, [isEmbedded])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -100,6 +111,8 @@ export function RentalsPage() {
     let q = supabase.from('v2_rentals').select('*, v2_cars(name, plate)').order('start_date', { ascending: false })
     if (rentalIdParam) {
       q = q.eq('id', rentalIdParam)
+    } else if (lockedCarId) {
+      q = q.eq('car_id', lockedCarId)
     }
     const { data, error: qError } = await q
     setLoading(false)
@@ -108,7 +121,7 @@ export function RentalsPage() {
       return
     }
     setRows((data ?? []) as RentalWithCar[])
-  }, [rentalIdParam])
+  }, [rentalIdParam, lockedCarId])
 
   useEffect(() => {
     void loadCars()
@@ -146,14 +159,18 @@ export function RentalsPage() {
 
   const columns: GridColDef<RentalWithCar>[] = useMemo(
     () => [
-      {
-        field: 'car',
-        headerName: 'Kendaraan',
-        flex: 1,
-        minWidth: 200,
-        valueGetter: (_v, row) =>
-          row.v2_cars ? `${row.v2_cars.name} (${row.v2_cars.plate})` : '—',
-      },
+      ...(isEmbedded
+        ? []
+        : [
+            {
+              field: 'car',
+              headerName: 'Kendaraan',
+              flex: 1,
+              minWidth: 200,
+              valueGetter: (_v: unknown, row: RentalWithCar) =>
+                row.v2_cars ? `${row.v2_cars.name} (${row.v2_cars.plate})` : '—',
+            } as GridColDef<RentalWithCar>,
+          ]),
       { field: 'renter_name', headerName: 'Penyewa', width: 160 },
       { field: 'start_date', headerName: 'Mulai', width: 120 },
       {
@@ -235,14 +252,16 @@ export function RentalsPage() {
         ),
       },
     ],
-    [],
+    [isEmbedded],
   )
 
   return (
     <Box>
-      <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
-        Sewa
-      </Typography>
+      {!isEmbedded ? (
+        <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
+          Sewa
+        </Typography>
+      ) : null}
 
       {rentalIdParam ? (
         <Alert severity="success" sx={{ mb: 2 }} onClose={dismissRentalHighlight}>
@@ -251,14 +270,36 @@ export function RentalsPage() {
       ) : null}
 
       {!rentalIdParam ? (
-        <InternalCarMonthFilter
-          cars={cars}
-          carId={carId}
-          onCarIdChange={setCarId}
-          month={month}
-          onMonthChange={setMonth}
-          allowAllCars
-        />
+        isEmbedded ? (
+          <Box sx={{ mb: 2 }}>
+            <DatePicker
+              label="Bulan"
+              value={month}
+              views={['month']}
+              minDate={dayjs().startOf('year')}
+              maxDate={dayjs().endOf('month')}
+              disableFuture
+              onChange={(value) => {
+                if (value) setMonth(value.startOf('month'))
+              }}
+              slotProps={{
+                textField: {
+                  size: 'small',
+                  sx: { width: { xs: '100%', sm: 'auto' }, minWidth: { sm: 180 } },
+                },
+              }}
+            />
+          </Box>
+        ) : (
+          <InternalCarMonthFilter
+            cars={cars}
+            carId={carId}
+            onCarIdChange={setCarId}
+            month={month}
+            onMonthChange={setMonth}
+            allowAllCars
+          />
+        )
       ) : null}
 
       <InternalDataGridSearchPanel

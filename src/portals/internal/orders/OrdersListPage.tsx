@@ -26,7 +26,17 @@ function orderSearchBlob(row: OrderRow, statusMap: Map<string, V2StatusRow>): st
   return `${row.renter_name} ${row.renter_phone ?? ''} ${car} ${st} ${stLabel} ${row.start_time ?? ''}`.toLowerCase()
 }
 
-export function OrdersListPage() {
+type OrdersListPageProps = {
+  /**
+   * When provided, the page operates in embedded mode (e.g. inside the Car detail tabs):
+   * results are locked to this car, the page heading is omitted, and creating a new
+   * order pre-selects (and locks) this car.
+   */
+  carId?: string
+}
+
+export function OrdersListPage({ carId: lockedCarId }: OrdersListPageProps = {}) {
+  const isEmbedded = Boolean(lockedCarId)
   const navigate = useNavigate()
   const [rows, setRows] = useState<OrderRow[]>([])
   const [statusMap, setStatusMap] = useState<Map<string, V2StatusRow>>(new Map())
@@ -49,17 +59,21 @@ export function OrdersListPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const { data, error: qError } = await supabase
+    let q = supabase
       .from('v2_orders')
       .select('*, v2_cars(name, plate)')
       .order('created_at', { ascending: false })
+    if (lockedCarId) {
+      q = q.eq('car_id', lockedCarId)
+    }
+    const { data, error: qError } = await q
     setLoading(false)
     if (qError) {
       setError(qError.message)
       return
     }
     setRows((data ?? []) as OrderRow[])
-  }, [])
+  }, [lockedCarId])
 
   useV2RealtimeRefresh('v2_orders', load)
 
@@ -152,9 +166,11 @@ export function OrdersListPage() {
 
   return (
     <Box>
-      <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
-        Pesanan
-      </Typography>
+      {!isEmbedded ? (
+        <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
+          Pesanan
+        </Typography>
+      ) : null}
 
       <InternalDataGridSearchPanel
         keyword={keyword}
@@ -205,6 +221,8 @@ export function OrdersListPage() {
 
       <OrderFormDialog
         open={orderFormOpen}
+        defaultCarId={lockedCarId}
+        lockCar={isEmbedded}
         onClose={() => setOrderFormOpen(false)}
         onSaved={(orderId) => {
           setOrderFormOpen(false)

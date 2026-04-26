@@ -40,9 +40,19 @@ type Props = {
   onClose: () => void
   /** Called after a successful insert with the new order id. */
   onSaved: (orderId: string) => void
+  /** Pre-select this car when the dialog opens (e.g. when launched from a Car detail tab). */
+  defaultCarId?: string
+  /** When true together with `defaultCarId`, the user cannot change the selected car. */
+  lockCar?: boolean
 }
 
-export function OrderFormDialog({ open, onClose, onSaved }: Props) {
+export function OrderFormDialog({
+  open,
+  onClose,
+  onSaved,
+  defaultCarId,
+  lockCar = false,
+}: Props) {
   const [cars, setCars] = useState<CarOption[]>([])
   const [carId, setCarId] = useState('')
   const [renterName, setRenterName] = useState('')
@@ -79,7 +89,7 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
   useEffect(() => {
     if (!open) return
     setError(null)
-    setCarId('')
+    setCarId(defaultCarId ?? '')
     setRenterName('')
     setRenterPhone('')
     setBlacklistBlocked(false)
@@ -91,20 +101,31 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
     setNotes('')
     setHardConflict(null)
     setSoftWarning(null)
-    void supabase
-      .from('v2_cars')
-      .select('id, name, plate, daily_rate')
-      .eq('status', 'available')
-      .is('deleted_at', null)
-      .order('name')
-      .then(({ data, error: qError }) => {
-        if (qError) {
-          setError(qError.message)
-          return
-        }
-        setCars(data ?? [])
-      })
-  }, [open])
+    void (async () => {
+      const { data: availableCars, error: qError } = await supabase
+        .from('v2_cars')
+        .select('id, name, plate, daily_rate')
+        .eq('status', 'available')
+        .is('deleted_at', null)
+        .order('name')
+      if (qError) {
+        setError(qError.message)
+        return
+      }
+      const list: CarOption[] = availableCars ?? []
+      // When pre-selecting a specific car (e.g. from the Car detail page), ensure it is
+      // present in the dropdown even if it isn't currently in 'available' status.
+      if (defaultCarId && !list.some((c) => c.id === defaultCarId)) {
+        const { data: extra } = await supabase
+          .from('v2_cars')
+          .select('id, name, plate, daily_rate')
+          .eq('id', defaultCarId)
+          .maybeSingle()
+        if (extra) list.unshift(extra as CarOption)
+      }
+      setCars(list)
+    })()
+  }, [open, defaultCarId])
 
   const runAvailabilityChecks = useCallback(async () => {
     setHardConflict(null)
@@ -260,13 +281,15 @@ export function OrderFormDialog({ open, onClose, onSaved }: Props) {
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <FormControl fullWidth size="small">
-            <InputLabel id="order-car-label">Kendaraan (tersedia)</InputLabel>
+            <InputLabel id="order-car-label">
+              {lockCar ? 'Kendaraan' : 'Kendaraan (tersedia)'}
+            </InputLabel>
             <Select
               labelId="order-car-label"
-              label="Kendaraan (tersedia)"
+              label={lockCar ? 'Kendaraan' : 'Kendaraan (tersedia)'}
               value={carId}
               onChange={(e) => setCarId(e.target.value)}
-              disabled={saving}
+              disabled={saving || lockCar}
             >
               {cars.map((c) => (
                 <MenuItem key={c.id} value={c.id}>

@@ -16,6 +16,9 @@ import type { CarWithPartner } from '../../../types/car'
 import { CarDetailEditForm } from './CarDetailEditForm'
 import { CarServiceTab } from './CarServiceTab'
 import { CarStatisticsTab } from './CarStatisticsTab'
+import { RentalsPage } from '../rentals/RentalsPage'
+import { OrdersListPage } from '../orders/OrdersListPage'
+import { TransactionsPage } from '../transactions/TransactionsPage'
 
 export function CarDetailPage() {
   const { carId } = useParams<{ carId: string }>()
@@ -102,11 +105,16 @@ export function CarDetailPage() {
         <Tabs
           value={tab}
           onChange={(_, v: number) => setTab(v)}
+          variant="scrollable"
+          scrollButtons="auto"
           sx={{ borderBottom: 1, borderColor: 'divider', px: 1 }}
         >
           <Tab label="Detail" />
+          <Tab label="Sewa" />
+          <Tab label="Pesanan" />
+          <Tab label="Transaksi" />
+          <Tab label="Log Servis" />
           <Tab label="Statistik" />
-          <Tab label="Service" />
         </Tabs>
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
           {tab === 0 ? (
@@ -116,8 +124,11 @@ export function CarDetailPage() {
               onDeleted={() => navigate('/internal/cars')}
             />
           ) : null}
-          {tab === 1 ? <CarStatisticsTab carId={carId} /> : null}
-          {tab === 2 ? <CarServiceTab carId={carId} /> : null}
+          {tab === 1 ? <RentalsPage carId={carId} /> : null}
+          {tab === 2 ? <OrdersListPage carId={carId} /> : null}
+          {tab === 3 ? <TransactionsPage carId={carId} /> : null}
+          {tab === 4 ? <CarServiceTab carId={carId} /> : null}
+          {tab === 5 ? <CarStatisticsTab carId={carId} /> : null}
         </Box>
       </Paper>
     </Box>

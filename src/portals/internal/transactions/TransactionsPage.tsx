@@ -12,6 +12,7 @@ import {
 import DownloadIcon from '@mui/icons-material/Download'
 import { useSearchParams } from 'react-router-dom'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { InternalDataGridSearchPanel } from '../../../components/InternalDataGridSearchPanel'
 import { InternalCarMonthFilter } from '../../../components/InternalCarMonthFilter'
 import { supabase } from '../../../lib/supabase'
@@ -59,10 +60,19 @@ function transactionSearchBlob(row: TransactionRow): string {
   return `${row.type} ${typeId} ${row.category} ${catLabel} ${catId} ${row.manual_note ?? ''} ${amt} ${auto}`.toLowerCase()
 }
 
-export function TransactionsPage() {
+type TransactionsPageProps = {
+  /**
+   * When provided, the page operates in embedded mode (e.g. inside the Car detail tabs):
+   * the car selector is hidden, results are locked to this car, and the page heading is omitted.
+   */
+  carId?: string
+}
+
+export function TransactionsPage({ carId: lockedCarId }: TransactionsPageProps = {}) {
+  const isEmbedded = Boolean(lockedCarId)
   const [searchParams] = useSearchParams()
   const [cars, setCars] = useState<CarOption[]>([])
-  const [carId, setCarId] = useState<string>('')
+  const [carId, setCarId] = useState<string>(lockedCarId ?? '')
   const [month, setMonth] = useState(() => dayjs().startOf('month'))
   const [rows, setRows] = useState<TransactionRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -74,24 +84,32 @@ export function TransactionsPage() {
   const [pdfBusy, setPdfBusy] = useState(false)
 
   const loadCars = useCallback(async () => {
-    const { data, error: qError } = await supabase
+    let q = supabase
       .from('v2_cars')
       .select('id, name, plate, ownership_type, has_gps, v2_partners(name)')
       .is('deleted_at', null)
       .order('name')
+    if (lockedCarId) {
+      q = q.eq('id', lockedCarId)
+    }
+    const { data, error: qError } = await q
     if (qError) {
       setError(qError.message)
       return
     }
     const list = data ?? []
     setCars(list)
+    if (lockedCarId) {
+      setCarId(lockedCarId)
+      return
+    }
     const fromUrl = searchParams.get('car')
     setCarId((prev) => {
       if (fromUrl && list.some((c) => c.id === fromUrl)) return fromUrl
       if (prev && list.some((c) => c.id === prev)) return prev
       return list[0]?.id ?? ''
     })
-  }, [searchParams])
+  }, [searchParams, lockedCarId])
 
   const loadTx = useCallback(async () => {
     if (!carId) {
@@ -263,16 +281,40 @@ export function TransactionsPage() {
 
   return (
     <Box>
-      <Typography variant="h5" gutterBottom sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
-        Transaksi
-      </Typography>
-      <InternalCarMonthFilter
-        cars={cars}
-        carId={carId}
-        onCarIdChange={setCarId}
-        month={month}
-        onMonthChange={setMonth}
-      />
+      {!isEmbedded ? (
+        <Typography variant="h5" gutterBottom sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
+          Transaksi
+        </Typography>
+      ) : null}
+      {isEmbedded ? (
+        <Box sx={{ mb: 2 }}>
+          <DatePicker
+            label="Bulan"
+            value={month}
+            views={['month']}
+            minDate={dayjs().startOf('year')}
+            maxDate={dayjs().endOf('month')}
+            disableFuture
+            onChange={(value) => {
+              if (value) setMonth(value.startOf('month'))
+            }}
+            slotProps={{
+              textField: {
+                size: 'small',
+                sx: { width: { xs: '100%', sm: 'auto' }, minWidth: { sm: 180 } },
+              },
+            }}
+          />
+        </Box>
+      ) : (
+        <InternalCarMonthFilter
+          cars={cars}
+          carId={carId}
+          onCarIdChange={setCarId}
+          month={month}
+          onMonthChange={setMonth}
+        />
+      )}
 
       {carId ? (
         <InternalDataGridSearchPanel
