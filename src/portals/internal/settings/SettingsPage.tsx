@@ -8,11 +8,13 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   Paper,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material'
+import EditIcon from '@mui/icons-material/Edit'
 import { formatIdr } from '../../../lib/formatIdr'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { InternalDataGridSearchPanel } from '../../../components/InternalDataGridSearchPanel'
@@ -42,27 +44,31 @@ function settingSearchBlob(row: SettingRow): string {
   return `${row.key} ${row.description ?? ''} ${row.value} ${fmt}`.toLowerCase()
 }
 
-/** Keys whose value is stored and edited as a number (see `formatSettingValue`). */
 function isNumericSettingKey(key: string): boolean {
   return key.endsWith('_pct') || key.endsWith('_fee') || key.endsWith('_rate')
 }
 
 export function SettingsPage() {
   const [rows, setRows] = useState<SettingRow[]>([])
-  const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [keyword, setKeyword] = useState('')
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
-  const [keyword, setKeyword] = useState('')
-
+  // ── Add dialog ──────────────────────────────────────────────────────────────
   const [addOpen, setAddOpen] = useState(false)
   const [newKey, setNewKey] = useState('')
   const [newValue, setNewValue] = useState('')
   const [newDescription, setNewDescription] = useState('')
   const [addBusy, setAddBusy] = useState(false)
 
+  // ── Edit modal ──────────────────────────────────────────────────────────────
+  const [editTarget, setEditTarget] = useState<SettingRow | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [editBusy, setEditBusy] = useState(false)
+
+  // ── Data ────────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -72,33 +78,51 @@ export function SettingsPage() {
       setError(qError.message)
       return
     }
-    const list = (data ?? []) as SettingRow[]
-    setRows(list)
-    const d: Record<string, string> = {}
-    for (const r of list) {
-      d[r.key] = r.value
-    }
-    setDrafts(d)
+    setRows((data ?? []) as SettingRow[])
   }, [])
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  useEffect(() => { void load() }, [load])
 
-  async function saveKey(key: string) {
-    const value = drafts[key]
-    if (value === undefined) return
-    setSavingKey(key)
+  // ── Edit modal handlers ─────────────────────────────────────────────────────
+  function openEdit(row: SettingRow) {
+    setEditTarget(row)
+    setEditValue(row.value)
+    setEditDescription(row.description ?? '')
     setError(null)
-    const { error: uError } = await supabase.from('v2_app_settings').update({ value }).eq('key', key)
-    setSavingKey(null)
+  }
+
+  function closeEdit() {
+    if (editBusy) return
+    setEditTarget(null)
+    setEditValue('')
+    setEditDescription('')
+  }
+
+  async function submitEdit() {
+    if (!editTarget) return
+    const isNumeric = isNumericSettingKey(editTarget.key)
+    const sanitized = isNumeric ? editValue.replace(/\D/g, '') : editValue.trim()
+    if (!sanitized) {
+      setError('Nilai tidak boleh kosong.')
+      return
+    }
+    const nextDescription = editDescription.trim() || null
+    setEditBusy(true)
+    setError(null)
+    const { error: uError } = await supabase
+      .from('v2_app_settings')
+      .update({ value: sanitized, description: nextDescription })
+      .eq('key', editTarget.key)
+    setEditBusy(false)
     if (uError) {
       setError(uError.message)
       return
     }
+    closeEdit()
     void load()
   }
 
+  // ── Add dialog handlers ─────────────────────────────────────────────────────
   function closeAddDialog() {
     if (addBusy) return
     setAddOpen(false)
@@ -140,13 +164,61 @@ export function SettingsPage() {
     void load()
   }
 
-  const filteredDisplayRows = useMemo(() => {
-    return rows.filter((r) => matchesSearchTokens(settingSearchBlob(r), keyword))
-  }, [rows, keyword])
+  // ── Grid ────────────────────────────────────────────────────────────────────
+  const filteredDisplayRows = useMemo(
+    () => rows.filter((r) => matchesSearchTokens(settingSearchBlob(r), keyword)),
+    [rows, keyword],
+  )
 
   const gridRows: SettingGridRow[] = useMemo(
     () => filteredDisplayRows.map((r) => ({ ...r, id: r.key })),
     [filteredDisplayRows],
+  )
+
+  const columns: GridColDef<SettingGridRow>[] = useMemo(
+    () => [
+      { field: 'key', headerName: 'Kunci', width: 180 },
+      {
+        field: 'description',
+        headerName: 'Deskripsi',
+        flex: 1,
+        minWidth: 140,
+        valueGetter: (_v, row) => row.description ?? '—',
+      },
+      {
+        field: 'value',
+        headerName: 'Nilai saat ini',
+        width: 150,
+        renderCell: (params) => (
+          <Tooltip title={params.row.value} placement="top">
+            <span>{formatSettingValue(params.row.key, params.row.value)}</span>
+          </Tooltip>
+        ),
+      },
+      {
+        field: 'action',
+        headerName: '',
+        width: 60,
+        align: 'center',
+        headerAlign: 'center',
+        sortable: false,
+        filterable: false,
+        disableColumnMenu: true,
+        renderCell: (params) => (
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation()
+              openEdit(params.row)
+            }}
+            aria-label="Edit"
+          >
+            <EditIcon fontSize="small" />
+          </IconButton>
+        ),
+      },
+    ],
+    [],
   )
 
   const handleSearch = (e: React.FormEvent) => {
@@ -158,81 +230,6 @@ export function SettingsPage() {
     setKeyword('')
     setPaginationModel((m) => ({ ...m, page: 0 }))
   }
-
-  const columns: GridColDef<SettingGridRow>[] = useMemo(
-    () => [
-      { field: 'key', headerName: 'Kunci', width: 160 },
-      {
-        field: 'description',
-        headerName: 'Deskripsi',
-        flex: 1,
-        minWidth: 140,
-        valueGetter: (_v, row) => row.description ?? '—',
-      },
-      {
-        field: 'value',
-        headerName: 'Nilai saat ini',
-        width: 140,
-        renderCell: (params) => (
-          <Tooltip title={params.row.value} placement="top">
-            <span>{formatSettingValue(params.row.key, params.row.value)}</span>
-          </Tooltip>
-        ),
-      },
-      {
-        field: 'draft',
-        headerName: 'Nilai baru',
-        flex: 1,
-        minWidth: 160,
-        sortable: false,
-        filterable: false,
-        disableColumnMenu: true,
-        renderCell: (params) => (
-          <TextField
-            size="small"
-            fullWidth
-            value={drafts[params.row.key] ?? ''}
-            onChange={(e) =>
-              setDrafts((d) => ({
-                ...d,
-                [params.row.key]: isNumericSettingKey(params.row.key)
-                  ? e.target.value.replace(/\D/g, '')
-                  : e.target.value,
-              }))
-            }
-            inputMode={isNumericSettingKey(params.row.key) ? 'numeric' : 'text'}
-            placeholder={params.row.value}
-            sx={{ mt: 0.5 }}
-          />
-        ),
-      },
-      {
-        field: 'save',
-        headerName: 'Simpan',
-        width: 100,
-        align: 'right',
-        headerAlign: 'right',
-        sortable: false,
-        filterable: false,
-        disableColumnMenu: true,
-        renderCell: (params) => (
-          <Button
-            size="small"
-            variant="contained"
-            disabled={savingKey === params.row.key || (drafts[params.row.key] ?? '') === params.row.value}
-            onClick={(e) => {
-              e.stopPropagation()
-              void saveKey(params.row.key)
-            }}
-            sx={{ my: 0.5 }}
-          >
-            Simpan
-          </Button>
-        ),
-      },
-    ],
-    [drafts, savingKey],
-  )
 
   return (
     <Box>
@@ -253,21 +250,28 @@ export function SettingsPage() {
         loading={loading}
       />
 
-      {error ? <Alert severity="error">{error}</Alert> : null}
+      {error ? <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert> : null}
+
       {!loading ? (
         <Box
           sx={{
             display: 'flex',
-            justifyContent: 'flex-end',
-            mb: 1,
-            mt: error ? 2 : 0,
+            justifyContent: { xs: 'stretch', sm: 'flex-end' },
+            mb: 2,
+            mt: error ? 1 : 0,
           }}
         >
-          <Button variant="outlined" size="small" onClick={() => setAddOpen(true)}>
-            Tambah
+          <Button
+            variant="contained"
+            fullWidth
+            sx={{ maxWidth: { xs: '100%', sm: 200 } }}
+            onClick={() => setAddOpen(true)}
+          >
+            Tambah pengaturan
           </Button>
         </Box>
       ) : null}
+
       {loading ? (
         <Box display="flex" justifyContent="center" py={4}>
           <CircularProgress />
@@ -275,27 +279,92 @@ export function SettingsPage() {
       ) : gridRows.length === 0 ? (
         <Typography color="text.secondary">Tidak ada pengaturan yang sesuai.</Typography>
       ) : (
-        <Paper
-          sx={{
-            width: '100%',
-            minWidth: 0,
-            overflow: 'hidden',
-          }}
-          variant="outlined"
-        >
+        <Paper sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }} variant="outlined">
           <DataGrid
             rows={gridRows}
             columns={columns}
             paginationModel={paginationModel}
             onPaginationModelChange={setPaginationModel}
             pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
-            disableRowSelectionOnClick
             autoHeight
-            sx={{ border: 'none' }}
+            sx={{ border: 'none', cursor: 'pointer' }}
+            onRowClick={({ row }) => openEdit(row as SettingGridRow)}
           />
         </Paper>
       )}
 
+      {/* ── Edit modal ─────────────────────────────────────────────────────── */}
+      <Dialog
+        open={editTarget !== null}
+        onClose={closeEdit}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Edit Pengaturan</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              label="Kunci"
+              size="small"
+              fullWidth
+              value={editTarget?.key ?? ''}
+              slotProps={{ input: { readOnly: true } }}
+            />
+            <TextField
+              label="Nilai lama"
+              size="small"
+              fullWidth
+              value={editTarget ? formatSettingValue(editTarget.key, editTarget.value) : ''}
+              slotProps={{ input: { readOnly: true } }}
+            />
+            <TextField
+              label="Nilai baru"
+              size="small"
+              fullWidth
+              autoFocus
+              multiline
+              minRows={3}
+              value={editValue}
+              onChange={(e) =>
+                setEditValue(
+                  editTarget && isNumericSettingKey(editTarget.key)
+                    ? e.target.value.replace(/\D/g, '')
+                    : e.target.value,
+                )
+              }
+              inputMode={editTarget && isNumericSettingKey(editTarget.key) ? 'numeric' : 'text'}
+            />
+            <TextField
+              label="Deskripsi"
+              size="small"
+              fullWidth
+              multiline
+              minRows={2}
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              placeholder="Penjelasan singkat untuk operator"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={closeEdit} disabled={editBusy}>
+            Batal
+          </Button>
+          <Button
+            variant="contained"
+            disabled={
+              editBusy ||
+              (editValue === editTarget?.value &&
+                editDescription === (editTarget?.description ?? ''))
+            }
+            onClick={() => void submitEdit()}
+          >
+            {editBusy ? 'Menyimpan…' : 'Simpan'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Add dialog ─────────────────────────────────────────────────────── */}
       <Dialog open={addOpen} onClose={closeAddDialog} fullWidth maxWidth="sm">
         <DialogTitle>Tambah pengaturan</DialogTitle>
         <DialogContent>

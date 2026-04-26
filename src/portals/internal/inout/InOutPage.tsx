@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Box,
   Button,
+  ButtonGroup,
   Chip,
+  ClickAwayListener,
   Dialog,
   DialogActions,
   DialogContent,
@@ -11,9 +13,12 @@ import {
   DialogTitle,
   FormControl,
   FormControlLabel,
+  Grow,
   InputLabel,
   MenuItem,
+  MenuList,
   Paper,
+  Popper,
   Select,
   Switch,
   Tab,
@@ -21,6 +26,8 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'
+import SendIcon from '@mui/icons-material/Send'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { TimePicker } from '@mui/x-date-pickers/TimePicker'
 import type { Dayjs } from 'dayjs'
@@ -35,6 +42,13 @@ import { completeRentalWithIncome } from '../../../lib/feeEngine'
 import { formatIdr } from '../../../lib/formatIdr'
 import { insertDownPaymentIncomeTransaction } from '../../../lib/rentalDownPaymentTxn'
 import { calcCost, type CostBreakdown } from '../../../lib/rentalCost'
+import { fetchCompanyDisplayName } from '../../../lib/ledgerPdf'
+import { buildWhatsAppMeUrlWithMessage } from '../../../lib/whatsappLink'
+import {
+  generateRentalInvoicePdf,
+  calcInvoiceTotals,
+} from '../../internal/rentals/rentalInvoicePdf'
+import { buildInvoiceWhatsAppMessage } from '../../internal/rentals/rentalInvoiceWhatsapp'
 import type { RentalWithCar } from '../../../types/rental'
 import { ConfirmDialog } from '../../../components/ConfirmDialog.tsx'
 
@@ -545,6 +559,10 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const [addingDp, setAddingDp] = useState(false)
   const [addDpModalOpen, setAddDpModalOpen] = useState(false)
   const [addDpModalError, setAddDpModalError] = useState<string | null>(null)
+  const [splitOpen, setSplitOpen] = useState(false)
+  const splitAnchorRef = useRef<HTMLDivElement>(null)
+  const [companyName, setCompanyName] = useState('')
+  const [bankAccount, setBankAccount] = useState('')
 
   useEffect(() => {
     void supabase
@@ -554,6 +572,15 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
       .maybeSingle()
       .then(({ data }) => {
         if (data?.value) setOvertimeRate(Number(data.value))
+      })
+    void fetchCompanyDisplayName(supabase).then(setCompanyName)
+    void supabase
+      .from('v2_app_settings')
+      .select('value')
+      .eq('key', 'bank_acc')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.value) setBankAccount(String(data.value))
       })
   }, [])
 
@@ -704,6 +731,18 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     setBlacklistNote('')
     void loadActive()
     onCompleted()
+  }
+
+  function handleKirimTagihan() {
+    if (!selected) return
+    setSplitOpen(false)
+    const totals = calcInvoiceTotals(selected)
+    generateRentalInvoicePdf(selected, companyName, bankAccount, overtimeRate)
+    if (selected.renter_phone) {
+      const msg = buildInvoiceWhatsAppMessage(selected, totals, bankAccount)
+      const waUrl = buildWhatsAppMeUrlWithMessage(selected.renter_phone, msg)
+      if (waUrl) window.open(waUrl, '_blank', 'noopener,noreferrer')
+    }
   }
 
   function openAddDpModal() {
@@ -1154,14 +1193,47 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
             Batalkan sewa
           </Button>
         ) : null}
-        <Button
-          variant="contained"
-          color="success"
-          onClick={() => void handleComplete()}
-          disabled={busy || addingDp || !selectedId}
+        <ButtonGroup variant="contained" color="success" ref={splitAnchorRef} disabled={busy || addingDp || !selectedId}>
+          <Button onClick={() => void handleComplete()}>
+            {busy ? 'Menyelesaikan…' : 'Selesaikan sewa'}
+          </Button>
+          <Button
+            size="small"
+            aria-label="Aksi tambahan"
+            aria-haspopup="menu"
+            aria-expanded={splitOpen}
+            onClick={() => setSplitOpen((prev) => !prev)}
+          >
+            <ArrowDropDownIcon />
+          </Button>
+        </ButtonGroup>
+        <Popper
+          open={splitOpen}
+          anchorEl={splitAnchorRef.current}
+          transition
+          disablePortal
+          placement="top-end"
+          sx={{ zIndex: 1400 }}
         >
-          {busy ? 'Menyelesaikan…' : 'Selesaikan sewa'}
-        </Button>
+          {({ TransitionProps }) => (
+            <Grow {...TransitionProps} style={{ transformOrigin: 'right bottom' }}>
+              <Paper elevation={4}>
+                <ClickAwayListener onClickAway={() => setSplitOpen(false)}>
+                  <MenuList autoFocusItem dense>
+                    <MenuItem
+                      onClick={handleKirimTagihan}
+                      disabled={!selectedId}
+                    >
+                      <SendIcon fontSize="small" sx={{ mr: 1.5 }} />
+                      Kirim Tagihan
+                      {selected?.renter_phone ? '' : ' (unduh PDF)'}
+                    </MenuItem>
+                  </MenuList>
+                </ClickAwayListener>
+              </Paper>
+            </Grow>
+          )}
+        </Popper>
       </Box>
 
       <Dialog
