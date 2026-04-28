@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Box,
   Button,
-  ButtonGroup,
   Chip,
-  ClickAwayListener,
   Dialog,
   DialogActions,
   DialogContent,
@@ -13,12 +11,9 @@ import {
   DialogTitle,
   FormControl,
   FormControlLabel,
-  Grow,
   InputLabel,
   MenuItem,
-  MenuList,
   Paper,
-  Popper,
   Select,
   Switch,
   Tab,
@@ -26,7 +21,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'
 import SendIcon from '@mui/icons-material/Send'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { TimePicker } from '@mui/x-date-pickers/TimePicker'
@@ -559,8 +553,6 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const [addingDp, setAddingDp] = useState(false)
   const [addDpModalOpen, setAddDpModalOpen] = useState(false)
   const [addDpModalError, setAddDpModalError] = useState<string | null>(null)
-  const [splitOpen, setSplitOpen] = useState(false)
-  const splitAnchorRef = useRef<HTMLDivElement>(null)
   const [companyName, setCompanyName] = useState('')
   const [bankAccount, setBankAccount] = useState('')
 
@@ -735,8 +727,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
 
   function handleKirimTagihan() {
     if (!selected) return
-    setSplitOpen(false)
-    const totals = calcInvoiceTotals(selected)
+    const totals = calcInvoiceTotals(selected, overtimeRate)
     generateRentalInvoicePdf(selected, companyName, bankAccount, overtimeRate)
     if (selected.renter_phone) {
       const msg = buildInvoiceWhatsAppMessage(selected, totals, bankAccount)
@@ -956,7 +947,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         maxWidth="xs"
       >
         <DialogTitle>Tambah DP</DialogTitle>
-        <DialogContent>
+        <DialogContent dividers>
           <DialogContentText sx={{ mb: 2 }}>
             Mencatat transaksi DP sewa dan menambah total DP pada sewa ini tanpa menyelesaikan checkout.
             {selected ? (
@@ -1055,6 +1046,18 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
                 </Typography>
               ) : null}
               <Typography variant="caption" color="text.secondary">Hanya referensi — masukkan jumlah aktual di bawah.</Typography>
+              {Math.max(0, costBreakdown.total - downPayment) > 0 ? (
+                <Box sx={{ display: 'flex', mt: 1 }}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<SendIcon />}
+                    onClick={handleKirimTagihan}
+                  >
+                    Kirim Tagihan
+                  </Button>
+                </Box>
+              ) : null}
             </>
           ) : (
             <Typography variant="caption" color="text.secondary">
@@ -1193,47 +1196,14 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
             Batalkan sewa
           </Button>
         ) : null}
-        <ButtonGroup variant="contained" color="success" ref={splitAnchorRef} disabled={busy || addingDp || !selectedId}>
-          <Button onClick={() => void handleComplete()}>
-            {busy ? 'Menyelesaikan…' : 'Selesaikan sewa'}
-          </Button>
-          <Button
-            size="small"
-            aria-label="Aksi tambahan"
-            aria-haspopup="menu"
-            aria-expanded={splitOpen}
-            onClick={() => setSplitOpen((prev) => !prev)}
-          >
-            <ArrowDropDownIcon />
-          </Button>
-        </ButtonGroup>
-        <Popper
-          open={splitOpen}
-          anchorEl={splitAnchorRef.current}
-          transition
-          disablePortal
-          placement="top-end"
-          sx={{ zIndex: 1400 }}
+        <Button
+          variant="contained"
+          color="success"
+          onClick={() => void handleComplete()}
+          disabled={busy || addingDp || !selectedId}
         >
-          {({ TransitionProps }) => (
-            <Grow {...TransitionProps} style={{ transformOrigin: 'right bottom' }}>
-              <Paper elevation={4}>
-                <ClickAwayListener onClickAway={() => setSplitOpen(false)}>
-                  <MenuList autoFocusItem dense>
-                    <MenuItem
-                      onClick={handleKirimTagihan}
-                      disabled={!selectedId}
-                    >
-                      <SendIcon fontSize="small" sx={{ mr: 1.5 }} />
-                      Kirim Tagihan
-                      {selected?.renter_phone ? '' : ' (unduh PDF)'}
-                    </MenuItem>
-                  </MenuList>
-                </ClickAwayListener>
-              </Paper>
-            </Grow>
-          )}
-        </Popper>
+          {busy ? 'Menyelesaikan…' : 'Selesaikan sewa'}
+        </Button>
       </Box>
 
       <Dialog
@@ -1246,7 +1216,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         maxWidth="xs"
       >
         <DialogTitle>Konfirmasi kata sandi</DialogTitle>
-        <DialogContent>
+        <DialogContent dividers>
           <DialogContentText sx={{ mb: 2 }}>
             Masukkan kata sandi akun Anda untuk melanjutkan pembatalan sewa.
           </DialogContentText>

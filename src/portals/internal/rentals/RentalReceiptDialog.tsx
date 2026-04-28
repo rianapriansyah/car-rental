@@ -92,7 +92,7 @@ export function RentalReceiptDialog({ open, rental, onClose }: Props) {
   return (
     <>
       <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth scroll="body">
-        <DialogContent sx={{ pt: 3, pb: 1 }}>
+        <DialogContent dividers sx={{ pt: 3, pb: 1 }}>
           <Box id="rental-receipt-print-root" sx={{ maxWidth: 520, mx: 'auto' }}>
             <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 2 }}>
               <Box sx={{ minWidth: 0 }}>

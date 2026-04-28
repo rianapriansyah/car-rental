@@ -27,7 +27,7 @@ export function ConfirmDialog({
   return (
     <Dialog open={open} onClose={onCancel} fullWidth maxWidth="xs">
       <DialogTitle>{title}</DialogTitle>
-      <DialogContent>
+      <DialogContent dividers>
         <DialogContentText>{description}</DialogContentText>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>

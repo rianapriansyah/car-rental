@@ -43,7 +43,17 @@ export function buildInvoiceWhatsAppMessage(
   totals: InvoiceTotals,
   bankAccount = '',
 ): string {
-  const { subtotal, dp, sisaTagihan } = totals
+  const {
+    days,
+    dailyRate,
+    dailyCost,
+    overtimeHours,
+    overtimeRate,
+    overtimeCost,
+    subtotal,
+    dp,
+    sisaTagihan,
+  } = totals
   const carLabel = rental.v2_cars
     ? `${rental.v2_cars.name} (${rental.v2_cars.plate})`
     : 'kendaraan'
@@ -51,23 +61,31 @@ export function buildInvoiceWhatsAppMessage(
   const elapsed = elapsedHoursFromNow(rental)
   const elapsedStr = elapsed > 0 ? formatElapsedLabel(elapsed) : '—'
 
+  const showBreakdown = overtimeHours > 0 && overtimeCost > 0
+
   const lines: (string | null)[] = [
     `Halo ${rental.renter_name},`,
     ``,
     `Berikut tagihan sewa ${carLabel}:`,
     ``,
-    `📅 Mulai          : ${fmtDateTime(rental.start_date, rental.start_time)}`,
-    rental.end_date ? `📅 Jatuh Tempo    : ${fmtDate(rental.end_date)}` : null,
-    `⏱ Durasi berjalan : ${elapsedStr}`,
+    `*Mulai*: ${fmtDateTime(rental.start_date, rental.start_time)}`,
+    rental.end_date ? `*Jatuh Tempo*: ${fmtDate(rental.end_date)}` : null,
+    `*Durasi berjalan*: ${elapsedStr}`,
     ``,
-    `💰 Total           : ${formatIdr(subtotal)}`,
-    dp > 0 ? `💳 DP              : ${formatIdr(dp)}` : null,
-    `🧾 Sisa Tagihan    : ${formatIdr(sisaTagihan)}`,
+    showBreakdown
+      ? `${days} hari × ${formatIdr(dailyRate)}: ${formatIdr(dailyCost)}`
+      : null,
+    showBreakdown
+      ? `${overtimeHours} jam OT × ${formatIdr(overtimeRate)}: ${formatIdr(overtimeCost)}`
+      : null,
+    `*Total*: ${formatIdr(subtotal)}`,
+    dp > 0 ? `*DP*: ${formatIdr(dp)}` : null,
+    `*Sisa Tagihan*: ${formatIdr(sisaTagihan)}`,
     ``,
     sisaTagihan > 0
-      ? `Terima kasih 🙏`
-      : `Tidak ada tagihan untuk dibayar. Terima kasih! 🙏`,
-    bankAccount.trim() ? `\n🏦 Pembayaran ke:\n${bankAccount.trim()}` : null,
+      ? `Terima kasih.`
+      : `Tidak ada tagihan untuk dibayar. Terima kasih!`,
+    bankAccount.trim() ? `\n*Pembayaran ke:*\n${bankAccount.trim()}` : null,
   ]
 
   return lines.filter((l): l is string => l !== null).join('\n')

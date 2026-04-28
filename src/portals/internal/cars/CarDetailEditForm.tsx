@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import {
   Alert,
   Box,
@@ -21,6 +21,14 @@ import type { CarWithPartner } from '../../../types/car'
 import { ConfirmDialog } from '../../../components/ConfirmDialog.tsx'
 import { DangerZone } from '../../../components/DangerZone'
 
+/**
+ * Imperative handle exposed by {@link CarDetailEditForm}. Used by parents (e.g. dialogs)
+ * that render the Save/Cancel buttons themselves and need to trigger save externally.
+ */
+export type CarDetailEditFormHandle = {
+  save: () => Promise<void>
+}
+
 type Props = {
   car: CarWithPartner | null
   onSaved: () => void
@@ -28,14 +36,23 @@ type Props = {
   onCancel?: () => void
   /** After soft-delete succeeds (detail page navigates away). */
   onDeleted?: () => void
+  /**
+   * When true, the built-in actions row (Batal/Simpan) is suppressed. The parent is
+   * expected to render its own buttons (e.g. inside MUI {@link DialogActions}) and
+   * trigger save via the imperative handle.
+   */
+  hideActions?: boolean
+  /**
+   * Called whenever the internal saving / uploading state changes. Useful when the
+   * parent renders Save/Cancel buttons externally and needs to reflect busy state.
+   */
+  onBusyChange?: (busy: { saving: boolean; uploading: boolean }) => void
 }
 
-export function CarDetailEditForm({
-  car,
-  onSaved,
-  onCancel,
-  onDeleted,
-}: Props) {
+export const CarDetailEditForm = forwardRef<CarDetailEditFormHandle, Props>(function CarDetailEditForm(
+  { car, onSaved, onCancel, onDeleted, hideActions = false, onBusyChange },
+  ref,
+) {
   const [name, setName] = useState('')
   const [plate, setPlate] = useState('')
   const [ownershipType, setOwnershipType] = useState<'rental' | 'partner'>('rental')
@@ -84,6 +101,10 @@ export function CarDetailEditForm({
         setPartners(data ?? [])
       })
   }, [])
+
+  useEffect(() => {
+    onBusyChange?.({ saving, uploading })
+  }, [saving, uploading, onBusyChange])
 
   async function handleSave() {
     if (ownershipType === 'partner' && !partnerId) {
@@ -157,6 +178,10 @@ export function CarDetailEditForm({
     }
     onSaved()
   }
+
+  useImperativeHandle(ref, () => ({
+    save: () => handleSave(),
+  }))
 
   async function handleSoftDelete() {
     if (!car) return
@@ -355,7 +380,7 @@ export function CarDetailEditForm({
         control={<Switch checked={hasGps} onChange={(_, v) => setHasGps(v)} size="small" />}
         label="GPS"
       />
-      {actionsRow}
+      {hideActions ? null : actionsRow}
       {car && !car.deleted_at ? (
         <Box sx={{ mt: 3 }}>
           <DangerZone
@@ -377,4 +402,4 @@ export function CarDetailEditForm({
       />
     </>
   )
-}
+})

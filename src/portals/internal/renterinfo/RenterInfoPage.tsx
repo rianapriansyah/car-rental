@@ -123,7 +123,7 @@ function RenterInfoFormDialog({ open, initial, onClose, onSaved }: FormDialogPro
     <>
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{initial ? 'Ubah info penyewa' : 'Tambah info penyewa'}</DialogTitle>
-      <DialogContent>
+      <DialogContent dividers>
         <Box component="form" id="renter-info-form" onSubmit={(e) => void handleSubmit(e)} sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 0.5 }}>
           {error ? <Alert severity="error">{error}</Alert> : null}
           <TextField

@@ -122,7 +122,7 @@ export function CompleteRentalDialog({
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="xs">
       <DialogTitle>Selesaikan Sewa</DialogTitle>
-      <DialogContent>
+      <DialogContent dividers>
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}

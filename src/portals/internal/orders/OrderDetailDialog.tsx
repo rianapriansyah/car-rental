@@ -141,7 +141,7 @@ export function OrderDetailDialog({
     <>
       <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm" scroll="paper">
         <DialogTitle>Detail pesanan</DialogTitle>
-        <DialogContent>
+        <DialogContent dividers>
           {loading ? (
             <Typography color="text.secondary" sx={{ py: 1 }}>
               Memuat…
@@ -229,7 +229,7 @@ export function OrderDetailDialog({
         maxWidth="sm"
       >
         <DialogTitle>Batalkan pesanan</DialogTitle>
-        <DialogContent>
+        <DialogContent dividers>
           <TextField
             autoFocus
             margin="dense"

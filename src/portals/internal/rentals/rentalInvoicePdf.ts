@@ -35,19 +35,68 @@ export function invoiceDays(rental: InvoiceRentalInput): number {
 }
 
 export type InvoiceTotals = {
+  /** Number of full days charged at daily rate (matches `calcCost.fullDays` when overtime applies). */
   days: number
+  /** Daily rate at time of billing. */
   dailyRate: number
+  /** Cost of the daily portion only (`days × dailyRate`). */
+  dailyCost: number
+  /** Hours of overtime billed (already ceiled per segment). */
+  overtimeHours: number
+  /** Overtime hourly rate used for the calculation. */
+  overtimeRate: number
+  /** Cost of the overtime portion only (`overtimeHours × overtimeRate`). */
+  overtimeCost: number
+  /** Total amount due before DP — `dailyCost + overtimeCost`. */
   subtotal: number
+  /** Down payment recorded for this rental. */
   dp: number
+  /** Outstanding amount: `max(0, subtotal − dp)`. */
   sisaTagihan: number
 }
 
-export function calcInvoiceTotals(rental: InvoiceRentalInput): InvoiceTotals {
-  const days = invoiceDays(rental)
+/**
+ * Compute totals for an invoice in a way that **matches the on-screen "Referensi Tarif"
+ * and the generated PDF**. Pass `overtimeRate` so OT can be billed correctly; omitting
+ * it falls back to a flat `days × dailyRate` calculation.
+ */
+export function calcInvoiceTotals(
+  rental: InvoiceRentalInput,
+  overtimeRate = 0,
+): InvoiceTotals {
   const dailyRate = rental.v2_cars?.daily_rate ?? 0
-  const subtotal = days * dailyRate
   const dp = Math.max(0, Number(rental.down_payment ?? 0))
-  return { days, dailyRate, subtotal, dp, sisaTagihan: Math.max(0, subtotal - dp) }
+  const elapsed = elapsedHoursFromNow(rental)
+  const bd = dailyRate > 0 && elapsed > 0 ? calcCost(elapsed, dailyRate, overtimeRate) : null
+
+  if (bd) {
+    const subtotal = bd.total
+    return {
+      days: bd.fullDays,
+      dailyRate,
+      dailyCost: bd.dailyCost,
+      overtimeHours: bd.overtimeHours,
+      overtimeRate,
+      overtimeCost: bd.overtimeCost,
+      subtotal,
+      dp,
+      sisaTagihan: Math.max(0, subtotal - dp),
+    }
+  }
+
+  const days = invoiceDays(rental)
+  const subtotal = days * dailyRate
+  return {
+    days,
+    dailyRate,
+    dailyCost: subtotal,
+    overtimeHours: 0,
+    overtimeRate,
+    overtimeCost: 0,
+    subtotal,
+    dp,
+    sisaTagihan: Math.max(0, subtotal - dp),
+  }
 }
 
 function fmtDate(dateStr: string | null | undefined): string {

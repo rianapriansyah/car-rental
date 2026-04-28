@@ -115,7 +115,7 @@ export function PartnerManageDialog({ open, partner, onClose, onSaved }: Props) 
     <>
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
       <DialogTitle>Ubah mitra</DialogTitle>
-      <DialogContent>
+      <DialogContent dividers>
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}

@@ -85,7 +85,7 @@ export function ManualTransactionDialog({ open, carId, onClose, onSaved }: Props
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
       <DialogTitle>Transaksi Manual</DialogTitle>
-      <DialogContent>
+      <DialogContent dividers>
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}

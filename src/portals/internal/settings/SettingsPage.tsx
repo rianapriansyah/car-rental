@@ -301,7 +301,7 @@ export function SettingsPage() {
         maxWidth="xs"
       >
         <DialogTitle>Edit Pengaturan</DialogTitle>
-        <DialogContent>
+        <DialogContent dividers>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField
               label="Kunci"
@@ -367,7 +367,7 @@ export function SettingsPage() {
       {/* ── Add dialog ─────────────────────────────────────────────────────── */}
       <Dialog open={addOpen} onClose={closeAddDialog} fullWidth maxWidth="sm">
         <DialogTitle>Tambah pengaturan</DialogTitle>
-        <DialogContent>
+        <DialogContent dividers>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField
               label="Kunci"

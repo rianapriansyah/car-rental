@@ -257,7 +257,7 @@ export function OrderFormDialog({
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm" scroll="paper">
       <DialogTitle>Tambah pesanan</DialogTitle>
-      <DialogContent>
+      <DialogContent dividers>
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}

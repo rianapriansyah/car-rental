@@ -161,7 +161,7 @@ function LogServiceDialog({ open, carId, addService, intervalDefaultsByType, onC
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm">
       <DialogTitle>Log Service</DialogTitle>
-      <DialogContent>
+      <DialogContent dividers>
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}
