@@ -11,6 +11,7 @@ import {
   DialogTitle,
   FormControl,
   FormControlLabel,
+  IconButton,
   InputLabel,
   MenuItem,
   Paper,
@@ -19,9 +20,11 @@ import {
   Tab,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
 import SendIcon from '@mui/icons-material/Send'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { TimePicker } from '@mui/x-date-pickers/TimePicker'
 import type { Dayjs } from 'dayjs'
@@ -35,7 +38,7 @@ import { supabase } from '../../../lib/supabase'
 import { completeRentalWithIncome } from '../../../lib/feeEngine'
 import { formatIdr } from '../../../lib/formatIdr'
 import { insertDownPaymentIncomeTransaction } from '../../../lib/rentalDownPaymentTxn'
-import { calcCost, type CostBreakdown } from '../../../lib/rentalCost'
+import { calcCost, SEGMENT_FULL_DAY_THRESHOLD_H, type CostBreakdown } from '../../../lib/rentalCost'
 import { fetchCompanyDisplayName } from '../../../lib/ledgerPdf'
 import { buildWhatsAppMeUrlWithMessage } from '../../../lib/whatsappLink'
 import {
@@ -555,6 +558,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const [addDpModalError, setAddDpModalError] = useState<string | null>(null)
   const [companyName, setCompanyName] = useState('')
   const [bankAccount, setBankAccount] = useState('')
+  const [tarifInfoOpen, setTarifInfoOpen] = useState(false)
 
   useEffect(() => {
     void supabase
@@ -1015,9 +1019,21 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
 
       {selected ? (
         <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 0.75 }}>
-            Referensi Tarif
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Referensi Tarif
+            </Typography>
+            <Tooltip title="Lihat aturan tarif">
+              <IconButton
+                size="small"
+                aria-label="Aturan tarif"
+                onClick={() => setTarifInfoOpen(true)}
+                sx={{ p: 0.25, color: 'text.secondary' }}
+              >
+                <InfoOutlinedIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
           <Typography variant="body2" sx={{ mb: 0.5 }}>
             Berlangsung:{' '}
             <strong>
@@ -1264,6 +1280,63 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         onCancel={() => setConfirmCancelOpen(false)}
         onConfirm={() => void handleCancelEarlyRent()}
       />
+
+      <Dialog
+        open={tarifInfoOpen}
+        onClose={() => setTarifInfoOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Aturan Tarif Sewa</DialogTitle>
+        <DialogContent dividers>
+          <DialogContentText component="div" sx={{ '& strong': { color: 'text.primary' } }}>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              Perhitungan biaya pada <strong>Referensi Tarif</strong> mengikuti aturan berikut:
+            </Typography>
+            <Box component="ol" sx={{ pl: 2.5, m: 0, '& li': { mb: 0.75 } }}>
+              <li>
+                <Typography variant="body2">
+                  <strong>25 jam pertama</strong> dihitung <strong>1 hari penuh</strong> (1× tarif harian).
+                </Typography>
+              </li>
+              <li>
+                <Typography variant="body2">
+                  Setelah jam ke-25, sisa waktu dipotong per <strong>segmen 24 jam</strong>.
+                  Untuk tiap segmen:
+                </Typography>
+                <Box component="ul" sx={{ pl: 2.5, mt: 0.5, mb: 0 }}>
+                  <li>
+                    <Typography variant="body2">
+                      ≤ <strong>{SEGMENT_FULL_DAY_THRESHOLD_H} jam</strong> → dihitung sebagai{' '}
+                      <strong>lembur (OT)</strong>, jam dibulatkan ke atas dan dikalikan tarif lembur per jam.
+                    </Typography>
+                  </li>
+                  <li>
+                    <Typography variant="body2">
+                      &gt; <strong>{SEGMENT_FULL_DAY_THRESHOLD_H} jam</strong> → dihitung{' '}
+                      <strong>+1 hari penuh</strong> (1× tarif harian).
+                    </Typography>
+                  </li>
+                </Box>
+              </li>
+              <li>
+                <Typography variant="body2">
+                  <strong>Total</strong> = (jumlah hari × tarif harian) + (jam lembur × tarif lembur).
+                </Typography>
+              </li>
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+              Tarif harian diambil dari data kendaraan; tarif lembur per jam mengikuti pengaturan aplikasi.
+              Nilai ini hanya <strong>referensi</strong> — jumlah aktual yang diterima tetap diisi pada kolom pembayaran.
+            </Typography>
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setTarifInfoOpen(false)} variant="contained">
+            Mengerti
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }
