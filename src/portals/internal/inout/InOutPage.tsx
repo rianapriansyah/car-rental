@@ -4,11 +4,6 @@ import {
   Box,
   Button,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
   FormControl,
   FormControlLabel,
   IconButton,
@@ -38,7 +33,7 @@ import { supabase } from '../../../lib/supabase'
 import { completeRentalWithIncome } from '../../../lib/feeEngine'
 import { formatIdr } from '../../../lib/formatIdr'
 import { insertDownPaymentIncomeTransaction } from '../../../lib/rentalDownPaymentTxn'
-import { calcCost, SEGMENT_FULL_DAY_THRESHOLD_H, type CostBreakdown } from '../../../lib/rentalCost'
+import { calcCost, type CostBreakdown } from '../../../lib/rentalCost'
 import { fetchCompanyDisplayName } from '../../../lib/ledgerPdf'
 import { buildWhatsAppMeUrlWithMessage } from '../../../lib/whatsappLink'
 import {
@@ -48,6 +43,9 @@ import {
 import { buildInvoiceWhatsAppMessage } from '../../internal/rentals/rentalInvoiceWhatsapp'
 import type { RentalWithCar } from '../../../types/rental'
 import { ConfirmDialog } from '../../../components/ConfirmDialog.tsx'
+import { AddDpDialog } from './AddDpDialog'
+import { CancelPasswordDialog } from './CancelPasswordDialog'
+import { TarifInfoDialog } from './TarifInfoDialog'
 
 // ─── RENTAL COST HELPERS ─────────────────────────────────────────────────────
 
@@ -549,13 +547,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const [busy, setBusy] = useState(false)
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false)
   const [cancelPasswordOpen, setCancelPasswordOpen] = useState(false)
-  const [cancelPassword, setCancelPassword] = useState('')
-  const [cancelPasswordError, setCancelPasswordError] = useState<string | null>(null)
-  const [verifyingCancelPassword, setVerifyingCancelPassword] = useState(false)
-  const [additionalDp, setAdditionalDp] = useState('')
-  const [addingDp, setAddingDp] = useState(false)
   const [addDpModalOpen, setAddDpModalOpen] = useState(false)
-  const [addDpModalError, setAddDpModalError] = useState<string | null>(null)
   const [companyName, setCompanyName] = useState('')
   const [bankAccount, setBankAccount] = useState('')
   const [tarifInfoOpen, setTarifInfoOpen] = useState(false)
@@ -740,41 +732,17 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     }
   }
 
-  function openAddDpModal() {
-    setAddDpModalError(null)
-    setAdditionalDp('')
-    setAddDpModalOpen(true)
-  }
-
-  function closeAddDpModal() {
-    setAddDpModalOpen(false)
-    setAddDpModalError(null)
-    setAdditionalDp('')
-  }
-
-  async function handleAddDp() {
-    if (!selected?.car_id) return
-    const addAmount = Number(additionalDp.replace(/\D/g, '') || 0)
-    if (!Number.isFinite(addAmount) || addAmount <= 0) {
-      setAddDpModalError('Masukkan jumlah DP tambahan lebih dari 0 (IDR).')
-      return
-    }
+  async function handleAddDpSubmit(addAmount: number): Promise<string | null> {
+    if (!selected?.car_id) return 'Sewa tidak ditemukan.'
     const prev = Number(selected.down_payment ?? 0)
     const next = prev + addAmount
-    setAddingDp(true)
-    setAddDpModalError(null)
     setSuccess(null)
 
     const { error: uErr } = await supabase
       .from('v2_rentals')
       .update({ down_payment: next })
       .eq('id', selected.id)
-
-    if (uErr) {
-      setAddingDp(false)
-      setAddDpModalError(uErr.message)
-      return
-    }
+    if (uErr) return uErr.message
 
     const { error: dpErr } = await insertDownPaymentIncomeTransaction(
       supabase,
@@ -784,51 +752,13 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     )
     if (dpErr) {
       await supabase.from('v2_rentals').update({ down_payment: prev }).eq('id', selected.id)
-      setAddingDp(false)
-      setAddDpModalError(dpErr.message)
-      return
+      return dpErr.message
     }
 
-    setAddingDp(false)
-    closeAddDpModal()
     setSuccess(`DP bertambah ${formatIdr(addAmount)}. Total DP sekarang: ${formatIdr(next)}.`)
     void loadActive()
     onCompleted()
-  }
-
-  function closeCancelPasswordDialog() {
-    setCancelPasswordOpen(false)
-    setCancelPassword('')
-    setCancelPasswordError(null)
-  }
-
-  async function verifyCancelPasswordAndOpenConfirm() {
-    setCancelPasswordError(null)
-    const pwd = cancelPassword
-    if (!pwd) {
-      setCancelPasswordError('Masukkan kata sandi akun Anda.')
-      return
-    }
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
-    if (userError || !user?.email) {
-      setCancelPasswordError(userError?.message ?? 'Tidak dapat memverifikasi pengguna. Silakan login ulang.')
-      return
-    }
-    setVerifyingCancelPassword(true)
-    const { error: signError } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: pwd,
-    })
-    setVerifyingCancelPassword(false)
-    if (signError) {
-      setCancelPasswordError('Kata sandi salah.')
-      return
-    }
-    closeCancelPasswordDialog()
-    setConfirmCancelOpen(true)
+    return null
   }
 
   async function handleCancelEarlyRent() {
@@ -899,7 +829,6 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
             setCheckoutMileage('')
             setBlacklist(false)
             setBlacklistNote('')
-            setAdditionalDp('')
             setError(null)
           }}
           disabled={loadingRentals}
@@ -921,8 +850,8 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         <Button
           variant="outlined"
           size="small"
-          onClick={openAddDpModal}
-          disabled={loadingRentals || busy || addingDp}
+          onClick={() => setAddDpModalOpen(true)}
+          disabled={loadingRentals || busy || addDpModalOpen}
           sx={{ alignSelf: 'flex-start' }}
         >
           Tambah DP (tanpa checkout)
@@ -941,65 +870,12 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         </Paper>
       ) : null}
 
-      <Dialog
+      <AddDpDialog
         open={addDpModalOpen}
-        onClose={() => {
-          if (addingDp) return
-          closeAddDpModal()
-        }}
-        fullWidth
-        maxWidth="xs"
-      >
-        <DialogTitle>Tambah DP</DialogTitle>
-        <DialogContent dividers>
-          <DialogContentText sx={{ mb: 2 }}>
-            Mencatat transaksi DP sewa dan menambah total DP pada sewa ini tanpa menyelesaikan checkout.
-            {selected ? (
-              <>
-                {' '}
-                DP saat ini:{' '}
-                <strong>{formatIdr(Number(selected.down_payment ?? 0))}</strong>
-              </>
-            ) : null}
-          </DialogContentText>
-          {addDpModalError ? (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setAddDpModalError(null)}>
-              {addDpModalError}
-            </Alert>
-          ) : null}
-          <TextField
-            autoFocus
-            fullWidth
-            size="small"
-            label="Jumlah DP tambahan (IDR)"
-            value={additionalDp}
-            onChange={(e) => {
-              setAdditionalDp(e.target.value.replace(/\D/g, ''))
-              if (addDpModalError) setAddDpModalError(null)
-            }}
-            inputMode="numeric"
-            disabled={addingDp}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                void handleAddDp()
-              }
-            }}
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={closeAddDpModal} disabled={addingDp}>
-            Batal
-          </Button>
-          <Button
-            variant="contained"
-            onClick={() => void handleAddDp()}
-            disabled={addingDp || !additionalDp.replace(/\D/g, '')}
-          >
-            {addingDp ? 'Menyimpan…' : 'Simpan'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        currentDownPayment={downPayment}
+        onClose={() => setAddDpModalOpen(false)}
+        onSubmit={handleAddDpSubmit}
+      />
 
       {checkInNote ? (
         <Box>
@@ -1201,12 +1077,8 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
           <Button
             variant="outlined"
             color="error"
-            onClick={() => {
-              setCancelPasswordError(null)
-              setCancelPassword('')
-              setCancelPasswordOpen(true)
-            }}
-            disabled={busy || addingDp || !selectedId}
+            onClick={() => setCancelPasswordOpen(true)}
+            disabled={busy || addDpModalOpen || !selectedId}
             sx={{ mr: { sm: 'auto' } }}
           >
             Batalkan sewa
@@ -1216,61 +1088,20 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
           variant="contained"
           color="success"
           onClick={() => void handleComplete()}
-          disabled={busy || addingDp || !selectedId}
+          disabled={busy || addDpModalOpen || !selectedId}
         >
           {busy ? 'Menyelesaikan…' : 'Selesaikan sewa'}
         </Button>
       </Box>
 
-      <Dialog
+      <CancelPasswordDialog
         open={cancelPasswordOpen}
-        onClose={() => {
-          if (verifyingCancelPassword) return
-          closeCancelPasswordDialog()
+        onClose={() => setCancelPasswordOpen(false)}
+        onVerified={() => {
+          setCancelPasswordOpen(false)
+          setConfirmCancelOpen(true)
         }}
-        fullWidth
-        maxWidth="xs"
-      >
-        <DialogTitle>Konfirmasi kata sandi</DialogTitle>
-        <DialogContent dividers>
-          <DialogContentText sx={{ mb: 2 }}>
-            Masukkan kata sandi akun Anda untuk melanjutkan pembatalan sewa.
-          </DialogContentText>
-          <TextField
-            autoFocus
-            fullWidth
-            size="small"
-            type="password"
-            label="Kata sandi"
-            value={cancelPassword}
-            onChange={(e) => {
-              setCancelPassword(e.target.value)
-              if (cancelPasswordError) setCancelPasswordError(null)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                void verifyCancelPasswordAndOpenConfirm()
-              }
-            }}
-            error={Boolean(cancelPasswordError)}
-            helperText={cancelPasswordError ?? undefined}
-            autoComplete="current-password"
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={closeCancelPasswordDialog} disabled={verifyingCancelPassword}>
-            Batal
-          </Button>
-          <Button
-            variant="contained"
-            onClick={() => void verifyCancelPasswordAndOpenConfirm()}
-            disabled={verifyingCancelPassword}
-          >
-            {verifyingCancelPassword ? 'Memverifikasi…' : 'Lanjutkan'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      />
 
       <ConfirmDialog
         open={confirmCancelOpen}
@@ -1281,62 +1112,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         onConfirm={() => void handleCancelEarlyRent()}
       />
 
-      <Dialog
-        open={tarifInfoOpen}
-        onClose={() => setTarifInfoOpen(false)}
-        fullWidth
-        maxWidth="xs"
-      >
-        <DialogTitle>Aturan Tarif Sewa</DialogTitle>
-        <DialogContent dividers>
-          <DialogContentText component="div" sx={{ '& strong': { color: 'text.primary' } }}>
-            <Typography variant="body2" sx={{ mb: 1 }}>
-              Perhitungan biaya pada <strong>Referensi Tarif</strong> mengikuti aturan berikut:
-            </Typography>
-            <Box component="ol" sx={{ pl: 2.5, m: 0, '& li': { mb: 0.75 } }}>
-              <li>
-                <Typography variant="body2">
-                  <strong>25 jam pertama</strong> dihitung <strong>1 hari penuh</strong> (1× tarif harian).
-                </Typography>
-              </li>
-              <li>
-                <Typography variant="body2">
-                  Setelah jam ke-25, sisa waktu dipotong per <strong>segmen 24 jam</strong>.
-                  Untuk tiap segmen:
-                </Typography>
-                <Box component="ul" sx={{ pl: 2.5, mt: 0.5, mb: 0 }}>
-                  <li>
-                    <Typography variant="body2">
-                      ≤ <strong>{SEGMENT_FULL_DAY_THRESHOLD_H} jam</strong> → dihitung sebagai{' '}
-                      <strong>lembur (OT)</strong>, jam dibulatkan ke atas dan dikalikan tarif lembur per jam.
-                    </Typography>
-                  </li>
-                  <li>
-                    <Typography variant="body2">
-                      &gt; <strong>{SEGMENT_FULL_DAY_THRESHOLD_H} jam</strong> → dihitung{' '}
-                      <strong>+1 hari penuh</strong> (1× tarif harian).
-                    </Typography>
-                  </li>
-                </Box>
-              </li>
-              <li>
-                <Typography variant="body2">
-                  <strong>Total</strong> = (jumlah hari × tarif harian) + (jam lembur × tarif lembur).
-                </Typography>
-              </li>
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
-              Tarif harian diambil dari data kendaraan; tarif lembur per jam mengikuti pengaturan aplikasi.
-              Nilai ini hanya <strong>referensi</strong> — jumlah aktual yang diterima tetap diisi pada kolom pembayaran.
-            </Typography>
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setTarifInfoOpen(false)} variant="contained">
-            Mengerti
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <TarifInfoDialog open={tarifInfoOpen} onClose={() => setTarifInfoOpen(false)} />
     </Box>
   )
 }

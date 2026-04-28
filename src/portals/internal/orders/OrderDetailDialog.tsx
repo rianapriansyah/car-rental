@@ -8,7 +8,6 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
-  TextField,
   Typography,
 } from '@mui/material'
 import dayjs from 'dayjs'
@@ -17,6 +16,7 @@ import { supabase } from '../../../lib/supabase'
 import { formatIdr } from '../../../lib/formatIdr'
 import { fetchV2StatusesByType, type V2StatusRow } from '../../../lib/v2StatusHelpers'
 import type { Tables } from '../../../types/database'
+import { OrderCancelDialog } from './OrderCancelDialog'
 
 export type OrderDetail = Tables<'v2_orders'> & {
   v2_cars: { name: string; plate: string; daily_rate: number | null } | null
@@ -47,7 +47,6 @@ export function OrderDetailDialog({
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
-  const [cancelReason, setCancelReason] = useState('')
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
@@ -73,7 +72,6 @@ export function OrderDetailDialog({
       setRow(null)
       setError(null)
       setCancelOpen(false)
-      setCancelReason('')
       return
     }
     void load()
@@ -86,34 +84,6 @@ export function OrderDetailDialog({
 
   const canCancel = row?.status === 'confirmed'
   const canActivate = row?.status === 'confirmed' && row.start_date <= todayYmd()
-
-  async function handleCancel() {
-    if (!orderId || !row) return
-    const reason = cancelReason.trim()
-    if (!reason) {
-      setError('Alasan pembatalan wajib diisi.')
-      return
-    }
-    setBusy(true)
-    setError(null)
-    const { error: uErr } = await supabase
-      .from('v2_orders')
-      .update({
-        status: 'cancelled',
-        cancel_reason: reason,
-        cancelled_at: new Date().toISOString(),
-      })
-      .eq('id', orderId)
-    setBusy(false)
-    if (uErr) {
-      setError(uErr.message)
-      return
-    }
-    setCancelOpen(false)
-    setCancelReason('')
-    await load()
-    onOrderUpdated?.()
-  }
 
   async function handleActivate() {
     if (!orderId) return
@@ -220,37 +190,16 @@ export function OrderDetailDialog({
         </DialogActions>
       </Dialog>
 
-      <Dialog
+      <OrderCancelDialog
         open={cancelOpen}
-        onClose={() => {
-          if (!busy) setCancelOpen(false)
+        orderId={orderId}
+        onClose={() => setCancelOpen(false)}
+        onCancelled={async () => {
+          await load()
+          onOrderUpdated?.()
         }}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>Batalkan pesanan</DialogTitle>
-        <DialogContent dividers>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Alasan pembatalan"
-            fullWidth
-            multiline
-            minRows={3}
-            value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
-            required
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setCancelOpen(false)} disabled={busy}>
-            Tutup
-          </Button>
-          <Button variant="contained" color="error" onClick={() => void handleCancel()} disabled={busy}>
-            Simpan pembatalan
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onError={setError}
+      />
     </>
   )
 }

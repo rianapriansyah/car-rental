@@ -4,49 +4,27 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   IconButton,
   Paper,
-  TextField,
   Tooltip,
   Typography,
 } from '@mui/material'
 import EditIcon from '@mui/icons-material/Edit'
-import { formatIdr } from '../../../lib/formatIdr'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { InternalDataGridSearchPanel } from '../../../components/InternalDataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
-
-type SettingRow = {
-  key: string
-  value: string
-  description: string | null
-}
+import { AddSettingDialog } from './AddSettingDialog'
+import { EditSettingDialog } from './EditSettingDialog'
+import {
+  formatSettingValue,
+  settingSearchBlob,
+  type SettingRow,
+} from './settingHelpers'
 
 type SettingGridRow = SettingRow & { id: string }
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
-
-function formatSettingValue(key: string, raw: string): string {
-  const n = Number(raw)
-  if (!Number.isFinite(n) || raw.trim() === '') return raw
-  if (key.endsWith('_pct')) return `${n}%`
-  if (key.endsWith('_fee') || key.endsWith('_rate')) return formatIdr(n)
-  return raw
-}
-
-function settingSearchBlob(row: SettingRow): string {
-  const fmt = formatSettingValue(row.key, row.value)
-  return `${row.key} ${row.description ?? ''} ${row.value} ${fmt}`.toLowerCase()
-}
-
-function isNumericSettingKey(key: string): boolean {
-  return key.endsWith('_pct') || key.endsWith('_fee') || key.endsWith('_rate')
-}
 
 export function SettingsPage() {
   const [rows, setRows] = useState<SettingRow[]>([])
@@ -55,20 +33,9 @@ export function SettingsPage() {
   const [keyword, setKeyword] = useState('')
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
-  // ── Add dialog ──────────────────────────────────────────────────────────────
   const [addOpen, setAddOpen] = useState(false)
-  const [newKey, setNewKey] = useState('')
-  const [newValue, setNewValue] = useState('')
-  const [newDescription, setNewDescription] = useState('')
-  const [addBusy, setAddBusy] = useState(false)
-
-  // ── Edit modal ──────────────────────────────────────────────────────────────
   const [editTarget, setEditTarget] = useState<SettingRow | null>(null)
-  const [editValue, setEditValue] = useState('')
-  const [editDescription, setEditDescription] = useState('')
-  const [editBusy, setEditBusy] = useState(false)
 
-  // ── Data ────────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -83,88 +50,11 @@ export function SettingsPage() {
 
   useEffect(() => { void load() }, [load])
 
-  // ── Edit modal handlers ─────────────────────────────────────────────────────
   function openEdit(row: SettingRow) {
     setEditTarget(row)
-    setEditValue(row.value)
-    setEditDescription(row.description ?? '')
     setError(null)
   }
 
-  function closeEdit() {
-    if (editBusy) return
-    setEditTarget(null)
-    setEditValue('')
-    setEditDescription('')
-  }
-
-  async function submitEdit() {
-    if (!editTarget) return
-    const isNumeric = isNumericSettingKey(editTarget.key)
-    const sanitized = isNumeric ? editValue.replace(/\D/g, '') : editValue.trim()
-    if (!sanitized) {
-      setError('Nilai tidak boleh kosong.')
-      return
-    }
-    const nextDescription = editDescription.trim() || null
-    setEditBusy(true)
-    setError(null)
-    const { error: uError } = await supabase
-      .from('v2_app_settings')
-      .update({ value: sanitized, description: nextDescription })
-      .eq('key', editTarget.key)
-    setEditBusy(false)
-    if (uError) {
-      setError(uError.message)
-      return
-    }
-    closeEdit()
-    void load()
-  }
-
-  // ── Add dialog handlers ─────────────────────────────────────────────────────
-  function closeAddDialog() {
-    if (addBusy) return
-    setAddOpen(false)
-    setNewKey('')
-    setNewValue('')
-    setNewDescription('')
-  }
-
-  async function submitNewSetting() {
-    const keyRaw = newKey.trim().toLowerCase().replace(/\s+/g, '_')
-    if (!keyRaw || !/^[\d_a-z]+$/.test(keyRaw)) {
-      setError('Kunci wajib diisi (huruf kecil, angka, dan garis bawah saja).')
-      return
-    }
-    const valRaw = newValue.trim()
-    if (!valRaw) {
-      setError('Nilai wajib diisi.')
-      return
-    }
-    setAddBusy(true)
-    setError(null)
-    const payload = {
-      key: keyRaw,
-      value: isNumericSettingKey(keyRaw) ? valRaw.replace(/\D/g, '') : valRaw,
-      description: newDescription.trim() || null,
-    }
-    if (isNumericSettingKey(keyRaw) && !payload.value) {
-      setAddBusy(false)
-      setError('Nilai angka tidak valid.')
-      return
-    }
-    const { error: iError } = await supabase.from('v2_app_settings').insert(payload)
-    setAddBusy(false)
-    if (iError) {
-      setError(iError.message)
-      return
-    }
-    closeAddDialog()
-    void load()
-  }
-
-  // ── Grid ────────────────────────────────────────────────────────────────────
   const filteredDisplayRows = useMemo(
     () => rows.filter((r) => matchesSearchTokens(settingSearchBlob(r), keyword)),
     [rows, keyword],
@@ -293,120 +183,19 @@ export function SettingsPage() {
         </Paper>
       )}
 
-      {/* ── Edit modal ─────────────────────────────────────────────────────── */}
-      <Dialog
-        open={editTarget !== null}
-        onClose={closeEdit}
-        fullWidth
-        maxWidth="xs"
-      >
-        <DialogTitle>Edit Pengaturan</DialogTitle>
-        <DialogContent dividers>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <TextField
-              label="Kunci"
-              size="small"
-              fullWidth
-              value={editTarget?.key ?? ''}
-              slotProps={{ input: { readOnly: true } }}
-            />
-            <TextField
-              label="Nilai lama"
-              size="small"
-              fullWidth
-              value={editTarget ? formatSettingValue(editTarget.key, editTarget.value) : ''}
-              slotProps={{ input: { readOnly: true } }}
-            />
-            <TextField
-              label="Nilai baru"
-              size="small"
-              fullWidth
-              autoFocus
-              multiline
-              minRows={3}
-              value={editValue}
-              onChange={(e) =>
-                setEditValue(
-                  editTarget && isNumericSettingKey(editTarget.key)
-                    ? e.target.value.replace(/\D/g, '')
-                    : e.target.value,
-                )
-              }
-              inputMode={editTarget && isNumericSettingKey(editTarget.key) ? 'numeric' : 'text'}
-            />
-            <TextField
-              label="Deskripsi"
-              size="small"
-              fullWidth
-              multiline
-              minRows={2}
-              value={editDescription}
-              onChange={(e) => setEditDescription(e.target.value)}
-              placeholder="Penjelasan singkat untuk operator"
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={closeEdit} disabled={editBusy}>
-            Batal
-          </Button>
-          <Button
-            variant="contained"
-            disabled={
-              editBusy ||
-              (editValue === editTarget?.value &&
-                editDescription === (editTarget?.description ?? ''))
-            }
-            onClick={() => void submitEdit()}
-          >
-            {editBusy ? 'Menyimpan…' : 'Simpan'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <EditSettingDialog
+        target={editTarget}
+        onClose={() => setEditTarget(null)}
+        onSaved={() => void load()}
+        onError={setError}
+      />
 
-      {/* ── Add dialog ─────────────────────────────────────────────────────── */}
-      <Dialog open={addOpen} onClose={closeAddDialog} fullWidth maxWidth="sm">
-        <DialogTitle>Tambah pengaturan</DialogTitle>
-        <DialogContent dividers>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <TextField
-              label="Kunci"
-              size="small"
-              required
-              fullWidth
-              value={newKey}
-              onChange={(e) => setNewKey(e.target.value)}
-              placeholder="company_name"
-              helperText="Huruf kecil, angka, dan garis bawah (contoh: company_name)."
-            />
-            <TextField
-              label="Nilai"
-              size="small"
-              required
-              fullWidth
-              value={newValue}
-              onChange={(e) => setNewValue(e.target.value)}
-              placeholder="Nilai yang disimpan"
-            />
-            <TextField
-              label="Deskripsi (opsional)"
-              size="small"
-              fullWidth
-              value={newDescription}
-              onChange={(e) => setNewDescription(e.target.value)}
-              placeholder="Penjelasan singkat untuk operator"
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={closeAddDialog} disabled={addBusy}>
-            Batal
-          </Button>
-          <Button variant="contained" disabled={addBusy} onClick={() => void submitNewSetting()}>
-            {addBusy ? 'Menyimpan…' : 'Simpan'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <AddSettingDialog
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSaved={() => void load()}
+        onError={setError}
+      />
     </Box>
   )
 }
