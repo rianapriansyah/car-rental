@@ -1,38 +1,42 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   Alert,
   Box,
   Button,
   Chip,
-  IconButton,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
+  Paper,
   Typography,
 } from '@mui/material'
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import AddIcon from '@mui/icons-material/Add'
-import { ResponsiveTableContainer } from '../../../components/ResponsiveTableContainer'
-import { formatIdr } from '../../../lib/formatIdr'
+import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { useCarServices } from '../../../hooks/useCarServices'
 import { SERVICE_TYPE_LABELS } from '../../../constants/serviceTypes'
-import type { ServiceCategory } from '../../../types/service'
+import type { CarServiceRow, ServiceType } from '../../../types/service'
+import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { LogServiceDialog } from './LogServiceDialog'
+import { ServiceDetailDialog } from './ServiceDetailDialog'
 
-function serviceCategoryLabel(category: ServiceCategory): string {
-  return category === 'component_replacement' ? 'Component Replacement' : 'Routine Maintenance'
-}
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
 type Props = {
   carId: string
 }
 
 export function CarServiceTab({ carId }: Props) {
-  const { services, reminders, intervalDefaultsByType, loading, error, deleteService, addService, refresh } = useCarServices(carId)
+  const {
+    services,
+    reminders,
+    intervalDefaultsByType,
+    loading,
+    error,
+    deleteService,
+    addService,
+    refresh,
+  } = useCarServices(carId)
+
   const [logOpen, setLogOpen] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [detailRow, setDetailRow] = useState<CarServiceRow | null>(null)
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
   const remindersSummary = useMemo(() => {
     if (reminders.length === 0) return { overdue: 0, dueSoon: 0 }
@@ -46,15 +50,71 @@ export function CarServiceTab({ carId }: Props) {
     )
   }, [reminders])
 
-  async function handleDelete(id: string) {
-    setDeletingId(id)
+  const handleDelete = useCallback(async (): Promise<string | null> => {
+    if (!detailRow) return 'Tidak ada service yang dipilih.'
     try {
-      await deleteService(id)
-      await refresh()
-    } finally {
-      setDeletingId(null)
+      await deleteService(detailRow.id)
+      return null
+    } catch (e) {
+      return e instanceof Error ? e.message : 'Gagal menghapus service.'
     }
-  }
+  }, [detailRow, deleteService])
+
+  const columns: GridColDef<CarServiceRow>[] = useMemo(
+    () => [
+      {
+        field: 'service_date',
+        headerName: 'Date',
+        width: 120,
+      },
+      {
+        field: 'service_type',
+        headerName: 'Service Type',
+        flex: 1,
+        minWidth: 160,
+        valueGetter: (v) =>
+          SERVICE_TYPE_LABELS[v as ServiceType] ?? String(v),
+      },
+      {
+        field: 'service_mileage',
+        headerName: 'Service KM',
+        width: 130,
+        align: 'right',
+        headerAlign: 'right',
+        valueGetter: (v) =>
+          v != null ? (v as number).toLocaleString('id-ID') : '—',
+      },
+      {
+        field: 'next_due_mileage',
+        headerName: 'Next KM',
+        width: 120,
+        align: 'right',
+        headerAlign: 'right',
+        valueGetter: (v) =>
+          v != null ? (v as number).toLocaleString('id-ID') : '—',
+      },
+      {
+        field: '_actions',
+        headerName: '',
+        width: 64,
+        sortable: false,
+        filterable: false,
+        disableColumnMenu: true,
+        align: 'center',
+        headerAlign: 'center',
+        renderCell: (params) => (
+          <DataGridUpdateIconButton
+            title="Lihat detail"
+            onClick={(e) => {
+              e.stopPropagation()
+              setDetailRow(params.row)
+            }}
+          />
+        ),
+      },
+    ],
+    [],
+  )
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -64,6 +124,7 @@ export function CarServiceTab({ carId }: Props) {
         </Alert>
       ) : null}
 
+      {/* ── Reminders ─────────────────────────────────────────────────── */}
       <Box>
         <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
           Upcoming / Overdue
@@ -85,7 +146,11 @@ export function CarServiceTab({ carId }: Props) {
               ) : null}
             </Box>
             {reminders.map((item) => (
-              <Alert key={item.id} severity={item.reminder_level === 'overdue' ? 'error' : 'warning'} variant="outlined">
+              <Alert
+                key={item.id}
+                severity={item.reminder_level === 'overdue' ? 'error' : 'warning'}
+                variant="outlined"
+              >
                 {SERVICE_TYPE_LABELS[item.service_type]} — due {item.next_due_date}
               </Alert>
             ))}
@@ -93,6 +158,7 @@ export function CarServiceTab({ carId }: Props) {
         )}
       </Box>
 
+      {/* ── Service History ────────────────────────────────────────────── */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
           Service History
@@ -102,58 +168,26 @@ export function CarServiceTab({ carId }: Props) {
         </Button>
       </Box>
 
-      {services.length === 0 ? (
+      {services.length === 0 && !loading ? (
         <Typography color="text.secondary">Belum ada riwayat service.</Typography>
       ) : (
-        <ResponsiveTableContainer>
-          <Table size="small" sx={{ minWidth: 1040 }}>
-            <TableHead>
-              <TableRow>
-                <TableCell>Date</TableCell>
-                <TableCell>Category</TableCell>
-                <TableCell>Service Type</TableCell>
-                <TableCell>Description</TableCell>
-                <TableCell>Next Due</TableCell>
-                <TableCell align="right">Service km</TableCell>
-                <TableCell align="right">Next km</TableCell>
-                <TableCell align="right">Cost</TableCell>
-                <TableCell>Vendor</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {services.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>{row.service_date}</TableCell>
-                  <TableCell>{serviceCategoryLabel(row.category)}</TableCell>
-                  <TableCell>{SERVICE_TYPE_LABELS[row.service_type]}</TableCell>
-                  <TableCell>{row.description ?? '—'}</TableCell>
-                  <TableCell>{row.next_due_date ?? '—'}</TableCell>
-                  <TableCell align="right">
-                    {row.service_mileage != null ? row.service_mileage.toLocaleString('id-ID') : '—'}
-                  </TableCell>
-                  <TableCell align="right">
-                    {row.next_due_mileage != null ? row.next_due_mileage.toLocaleString('id-ID') : '—'}
-                  </TableCell>
-                  <TableCell align="right">{row.cost != null ? formatIdr(Number(row.cost)) : '—'}</TableCell>
-                  <TableCell>{row.vendor ?? '—'}</TableCell>
-                  <TableCell align="right">
-                    <IconButton
-                      color="error"
-                      size="small"
-                      onClick={() => void handleDelete(row.id)}
-                      disabled={deletingId === row.id}
-                    >
-                      <DeleteOutlineIcon fontSize="small" />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </ResponsiveTableContainer>
+        <Paper variant="outlined" sx={{ width: '100%', overflow: 'hidden' }}>
+          <DataGrid
+            rows={services}
+            columns={columns}
+            loading={loading}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
+            autoHeight
+            disableRowSelectionOnClick
+            onRowClick={(params) => setDetailRow(params.row as CarServiceRow)}
+            sx={{ border: 'none', cursor: 'pointer' }}
+          />
+        </Paper>
       )}
 
+      {/* ── Dialogs ───────────────────────────────────────────────────── */}
       <LogServiceDialog
         open={logOpen}
         carId={carId}
@@ -161,6 +195,17 @@ export function CarServiceTab({ carId }: Props) {
         intervalDefaultsByType={intervalDefaultsByType}
         onClose={() => setLogOpen(false)}
         onSaved={() => void refresh()}
+      />
+
+      <ServiceDetailDialog
+        open={detailRow !== null}
+        service={detailRow}
+        onClose={() => setDetailRow(null)}
+        onDeleted={() => {
+          setDetailRow(null)
+          void refresh()
+        }}
+        onDelete={handleDelete}
       />
     </Box>
   )
