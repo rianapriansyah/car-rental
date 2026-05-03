@@ -65,6 +65,7 @@ export const CarDetailEditForm = forwardRef<CarDetailEditFormHandle, Props>(func
   const [uploading, setUploading] = useState(false)
   const [notes, setNotes] = useState('')
   const [fleetActive, setFleetActive] = useState(true)
+  const [ledgerActive, setLedgerActive] = useState(true)
   const [partners, setPartners] = useState<PartnerRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -85,6 +86,7 @@ export const CarDetailEditForm = forwardRef<CarDetailEditFormHandle, Props>(func
     setPhotoPreview('')
     setNotes(car?.notes ?? '')
     setFleetActive(car ? car.status !== 'inactive' : true)
+    setLedgerActive(car?.ledger_active ?? true)
   }, [car])
 
   useEffect(() => {
@@ -159,6 +161,7 @@ export const CarDetailEditForm = forwardRef<CarDetailEditFormHandle, Props>(func
       photo_url: photoFile ? nextPhotoUrl : car ? car.photo_url : null,
       notes: notes.trim() || null,
       status: nextStatus,
+      ledger_active: ledgerActive,
     }
 
     if (car) {
@@ -373,6 +376,18 @@ export const CarDetailEditForm = forwardRef<CarDetailEditFormHandle, Props>(func
         />
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', ml: 4, mt: -0.5 }}>
           Nonaktifkan jika kendaraan tidak dipakai operasional (mis. dibawa pemilik).
+        </Typography>
+      </Box>
+      <Box sx={{ mb: 1.5 }}>
+        <FormControlLabel
+          control={
+            <Switch checked={ledgerActive} onChange={(_, v) => setLedgerActive(v)} size="small" color="primary" />
+          }
+          label="Catat transaksi sewa di buku besar"
+        />
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', ml: 4, mt: -0.5 }}>
+          Nonaktifkan jika mobil dioperasikan di sini tetapi pembukuan dilakukan di luar aplikasi (tanpa DP/checkout
+          otomatis di ledger).
         </Typography>
       </Box>
       <FormControlLabel

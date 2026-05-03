@@ -94,6 +94,7 @@ export function HomePage() {
       .from('v2_cars')
       .select('*, v2_partners(name)')
       .is('deleted_at', null)
+      .eq('ledger_active', true)
       .order('name')
 
     if (carError) {

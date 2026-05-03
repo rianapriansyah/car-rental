@@ -40,6 +40,7 @@ export type Database = {
           photo_url: string | null
           notes: string | null
           mileage: number | null
+          ledger_active: boolean
           created_at: string | null
           deleted_at: string | null
         }
@@ -55,6 +56,7 @@ export type Database = {
           photo_url?: string | null
           notes?: string | null
           mileage?: number | null
+          ledger_active?: boolean
           created_at?: string | null
           deleted_at?: string | null
         }
@@ -70,6 +72,7 @@ export type Database = {
           photo_url?: string | null
           notes?: string | null
           mileage?: number | null
+          ledger_active?: boolean
           created_at?: string | null
           deleted_at?: string | null
         }

@@ -10,6 +10,23 @@ export async function insertDownPaymentIncomeTransaction(
   if (!Number.isFinite(amount) || amount <= 0) {
     return { error: null }
   }
+
+  const { data: car, error: carErr } = await supabase
+    .from('v2_cars')
+    .select('ledger_active')
+    .eq('id', carId)
+    .maybeSingle()
+
+  if (carErr) {
+    return { error: new Error(carErr.message) }
+  }
+  if (!car) {
+    return { error: new Error('Car not found') }
+  }
+  if (car.ledger_active === false) {
+    return { error: null }
+  }
+
   const { error } = await supabase.from('v2_transactions').insert({
     car_id: carId,
     rental_id: rentalId,
