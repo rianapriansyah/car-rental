@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Box, Typography } from '@mui/material'
 import dayjs from 'dayjs'
+import 'dayjs/locale/id'
 import { supabase } from '../../lib/supabase'
 import { useV2RealtimeRefresh } from '../../hooks/useV2RealtimeRefresh'
 import { formatIdr } from '../../lib/formatIdr'
 import { calcCost, type CostBreakdown } from '../../lib/rentalCost'
+import { fetchCompanyDisplayName } from '../../lib/ledgerPdf'
 import type { Tables } from '../../types/database'
 
 type ActiveRental = Tables<'v2_rentals'> & {
@@ -61,8 +63,9 @@ const SCROLL_SPEED_REF_HEIGHT = 720
 /** Fluid typography & spacing — scales from small kiosk browsers to 4K TVs */
 const tvRootSx = {
   /* typographic scale */
-  '--tv-title': 'clamp(1rem, 2.1vw + 0.55rem, 2.85rem)',
+  '--tv-title': 'clamp(0.82rem, 1.65vw + 0.42rem, 2.35rem)',
   '--tv-clock': 'clamp(1.15rem, 2.6vw + 0.45rem, 3.15rem)',
+  '--tv-company': 'clamp(0.78rem, 1.35vw + 0.42rem, 1.85rem)',
   '--tv-date': 'clamp(0.62rem, 0.55vw + 0.48rem, 1rem)',
   '--tv-th': 'clamp(0.52rem, 0.42vw + 0.42rem, 0.92rem)',
   '--tv-td': 'clamp(0.68rem, 0.55vw + 0.48rem, 1.12rem)',
@@ -79,6 +82,7 @@ const tvRootSx = {
 
 export function TvDisplayPage() {
   const [rentals, setRentals] = useState<ActiveRental[]>([])
+  const [companyName, setCompanyName] = useState('')
   const [overtimeRate, setOvertimeRate] = useState(25000)
   const [now, setNow] = useState(() => dayjs())
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -91,7 +95,7 @@ export function TvDisplayPage() {
   }, [])
 
   const load = useCallback(async () => {
-    const [{ data: rentalData }, { data: settingData }] = await Promise.all([
+    const [{ data: rentalData }, { data: settingData }, displayName] = await Promise.all([
       supabase
         .from('v2_rentals')
         .select('*, v2_cars(name, plate, daily_rate)')
@@ -102,8 +106,10 @@ export function TvDisplayPage() {
         .select('value')
         .eq('key', 'overtime_hourly_rate')
         .maybeSingle(),
+      fetchCompanyDisplayName(supabase),
     ])
     setRentals((rentalData ?? []) as ActiveRental[])
+    setCompanyName(displayName)
     if (settingData?.value) setOvertimeRate(Number(settingData.value))
   }, [])
 
@@ -111,7 +117,7 @@ export function TvDisplayPage() {
     void load()
   }, [load])
 
-  useV2RealtimeRefresh('v2_rentals,v2_cars', load)
+  useV2RealtimeRefresh('v2_rentals,v2_cars,v2_app_settings', load)
 
   useEffect(() => {
     const updateScrollStep = () => {
@@ -145,7 +151,7 @@ export function TvDisplayPage() {
   }, [rentals.length])
 
   const clockStr = now.format('HH:mm:ss')
-  const dateStr = `${ID_DAYS[now.day()]}, ${now.format('DD MMMM YYYY')}`
+  const dateStr = `${ID_DAYS[now.day()]}, ${now.locale('id').format('DD MMMM YYYY')}`
 
   const COLS = ['No', 'Mobil', 'Pemakai', 'Waktu Mulai', 'Berjalan', 'DP', 'Tagihan Berjalan']
 
@@ -168,22 +174,25 @@ export function TvDisplayPage() {
         boxSizing: 'border-box',
       }}
     >
-      {/* ── Header ── */}
+      {/* ── Header: left title | centered company | right clock ── */}
       <Box
         sx={{
           background: 'linear-gradient(90deg, #b84500 0%, #e07800 55%, #c85f00 100%)',
           px: 'var(--tv-pad-x)',
           py: 'var(--tv-pad-y-header)',
-          display: 'flex',
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          columnGap: 'clamp(0.35rem, 1.5vw, 1rem)',
           flexShrink: 0,
-          flexWrap: 'wrap',
-          gap: 'clamp(0.5rem, 1.5vw, 1.25rem)',
           boxShadow: '0 0.22vw 1.1vw rgba(0,0,0,0.6)',
         }}
       >
-        <Box display="flex" alignItems="center" sx={{ gap: 'clamp(0.35rem, 1.2vw, 1rem)' }}>
+        <Box
+          display="flex"
+          alignItems="center"
+          sx={{ gap: 'clamp(0.35rem, 1.2vw, 1rem)', justifySelf: 'start', minWidth: 0 }}
+        >
           <Box
             sx={{
               width: 'var(--tv-pulse)',
@@ -208,12 +217,36 @@ export function TvDisplayPage() {
               textTransform: 'uppercase',
               textShadow: '0 0.12vw 0.35vw rgba(0,0,0,0.4)',
               lineHeight: 1.15,
+              minWidth: 0,
             }}
           >
             Rental Berjalan
           </Typography>
         </Box>
-        <Box textAlign="right" sx={{ minWidth: 0 }}>
+        <Typography
+          component="span"
+          sx={{
+            justifySelf: 'center',
+            fontSize: 'var(--tv-company)',
+            fontWeight: 800,
+            letterSpacing: 'clamp(0.04em, 0.15vw, 0.12em)',
+            lineHeight: 1.2,
+            textShadow: '0 0.08vw 0.28vw rgba(0,0,0,0.35)',
+            textAlign: 'center',
+            width: '100%',
+            minWidth: 0,
+            px: 'clamp(0.25rem, 1vw, 0.75rem)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            wordBreak: 'break-word',
+          }}
+        >
+          {companyName}
+        </Typography>
+        <Box textAlign="right" sx={{ justifySelf: 'end', minWidth: 0, flexShrink: 0 }}>
           <Typography
             sx={{
               fontFamily: '"Roboto Mono", "Courier New", monospace',
@@ -256,7 +289,7 @@ export function TvDisplayPage() {
                 <th
                   key={label}
                   style={{
-                    ...getThStyle(idx === 5),
+                    ...getThStyle(idx === 5 || idx === 6),
                   }}
                 >
                   {label}
@@ -386,11 +419,18 @@ export function TvDisplayPage() {
                     </td>
 
                     {/* Tagihan Berjalan */}
-                    <td style={{ ...getTdBase(), wordBreak: 'break-word' }}>
+                    <td style={{ ...getTdBase(), textAlign: 'right', wordBreak: 'break-word' }}>
                       {!bd ? (
                         <span style={{ color: '#3a5a80' }}>—</span>
                       ) : (
-                        <div style={{ fontSize: '0.9em', lineHeight: 1.6, fontFamily: 'monospace' }}>
+                        <div
+                          style={{
+                            fontSize: '0.9em',
+                            lineHeight: 1.6,
+                            fontFamily: 'monospace',
+                            textAlign: 'right',
+                          }}
+                        >
                           <div style={{ color: '#e8eef8', fontWeight: 700 }}>{formatIdr(gross)}</div>
 
                           {hasOt && (
