@@ -120,6 +120,14 @@ export function TvDisplayPage() {
   useV2RealtimeRefresh('v2_rentals,v2_cars,v2_app_settings', load)
 
   useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [load])
+
+  useEffect(() => {
     const updateScrollStep = () => {
       const h = typeof window !== 'undefined' ? window.innerHeight : SCROLL_SPEED_REF_HEIGHT
       const scale = h / SCROLL_SPEED_REF_HEIGHT
