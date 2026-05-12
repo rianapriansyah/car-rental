@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import PrintIcon from '@mui/icons-material/Print'
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'
@@ -17,14 +17,21 @@ import {
   MenuList,
   Paper,
   Popper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Typography,
 } from '@mui/material'
 import type { RentalWithCar } from '../../../types/rental'
 import { supabase } from '../../../lib/supabase'
-import { fetchCompanyDisplayName } from '../../../lib/ledgerPdf'
+import { fetchAdminNumberDisplay, fetchCompanyDisplayName } from '../../../lib/ledgerPdf'
 import { formatIdr } from '../../../lib/formatIdr'
 import {
   buildDetailRows,
+  buildReceiptLineItems,
   formatReceiptDateTime,
   formatReceiptToday,
   receiptNumber,
@@ -32,6 +39,7 @@ import {
 } from './rentalReceiptFormat'
 import { downloadRentalReceiptPdf } from './rentalReceiptPdf'
 import { printStandaloneReceipt } from './rentalReceiptPrint'
+import { buildRentalVerificationUrl } from '../../../lib/receiptVerificationUrl'
 
 type Props = {
   open: boolean
@@ -67,15 +75,22 @@ function summaryCard(label: string, value: string) {
 
 export function RentalReceiptDialog({ open, rental, onClose }: Props) {
   const [companyName, setCompanyName] = useState('')
+  const [adminNumber, setAdminNumber] = useState('')
   const [splitOpen, setSplitOpen] = useState(false)
-  const splitAnchorRef = useRef<HTMLDivElement>(null)
+  const [splitAnchorEl, setSplitAnchorEl] = useState<HTMLElement | null>(null)
 
   useEffect(() => {
     if (!open) return
     let cancelled = false
     void (async () => {
-      const name = await fetchCompanyDisplayName(supabase)
-      if (!cancelled) setCompanyName(name)
+      const [name, admin] = await Promise.all([
+        fetchCompanyDisplayName(supabase),
+        fetchAdminNumberDisplay(supabase),
+      ])
+      if (!cancelled) {
+        setCompanyName(name)
+        setAdminNumber(admin)
+      }
     })()
     return () => {
       cancelled = true
@@ -84,7 +99,10 @@ export function RentalReceiptDialog({ open, rental, onClose }: Props) {
 
   if (!rental) return null
 
+  const verificationUrl = buildRentalVerificationUrl(rental.id)
+
   const issued = formatReceiptToday()
+  const lineItems = buildReceiptLineItems(rental)
   const detailRows = buildDetailRows(rental)
   const total = receiptTotal(rental)
   const note = rental.manual_note?.trim()
@@ -102,6 +120,11 @@ export function RentalReceiptDialog({ open, rental, onClose }: Props) {
                 <Typography variant="body2" color="text.secondary">
                   {companyName}
                 </Typography>
+                {adminNumber ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                    {adminNumber}
+                  </Typography>
+                ) : null}
               </Box>
               <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
                 <Chip label="Selesai" size="small" color="success" variant="outlined" sx={{ mb: 1 }} />
@@ -158,27 +181,61 @@ export function RentalReceiptDialog({ open, rental, onClose }: Props) {
             <Divider sx={{ my: 2 }} />
 
             <Typography sx={SECTION}>RINCIAN</Typography>
-            <Box sx={{ mb: 2 }}>
-              {detailRows.map((row, i) => (
-                <Box
-                  key={`${row.key}-${i}`}
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 2,
-                    py: 1.25,
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0 }}>
-                    {row.key}
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {row.value}
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
+            {lineItems.length > 0 ? (
+              <TableContainer sx={{ mb: detailRows.length > 0 ? 2 : 0 }}>
+                <Table size="small" sx={{ '& .MuiTableCell-root': { borderColor: 'divider', py: 1.125 } }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Item</TableCell>
+                      <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Durasi</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                        Tarif Harian
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                        Total
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {lineItems.map((ln) => (
+                      <TableRow key={ln.item}>
+                        <TableCell sx={{ fontWeight: 600 }}>{ln.item}</TableCell>
+                        <TableCell>{ln.durasi}</TableCell>
+                        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                          {ln.tarifHarian}
+                        </TableCell>
+                        <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}>
+                          {ln.total}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : null}
+            {detailRows.length > 0 ? (
+              <Box sx={{ mb: 2 }}>
+                {detailRows.map((row, i) => (
+                  <Box
+                    key={`${row.key}-${i}`}
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 2,
+                      py: 1.25,
+                    }}
+                  >
+                    <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0 }}>
+                      {row.key}
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {row.value}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            ) : null}
 
             <Divider sx={{ my: 0.5 }} />
 
@@ -235,10 +292,10 @@ export function RentalReceiptDialog({ open, rental, onClose }: Props) {
         >
           <Button onClick={onClose}>Batal</Button>
           <Box>
-            <ButtonGroup variant="contained" ref={splitAnchorRef}>
+            <ButtonGroup variant="contained" ref={setSplitAnchorEl}>
               <Button
                 startIcon={<PrintIcon />}
-                onClick={() => printStandaloneReceipt(rental, companyName)}
+                onClick={() => void printStandaloneReceipt(rental, companyName, adminNumber, verificationUrl)}
               >
                 Cetak kuitansi
               </Button>
@@ -254,7 +311,7 @@ export function RentalReceiptDialog({ open, rental, onClose }: Props) {
             </ButtonGroup>
             <Popper
               open={splitOpen}
-              anchorEl={splitAnchorRef.current}
+              anchorEl={splitAnchorEl}
               transition
               disablePortal
               placement="top-end"
@@ -268,8 +325,9 @@ export function RentalReceiptDialog({ open, rental, onClose }: Props) {
                         <MenuItem
                           onClick={() => {
                             setSplitOpen(false)
-                            downloadRentalReceiptPdf(rental, companyName)
-                            onClose()
+                            void downloadRentalReceiptPdf(rental, companyName, adminNumber, verificationUrl).then(
+                              () => onClose(),
+                            )
                           }}
                         >
                           <PictureAsPdfIcon fontSize="small" sx={{ mr: 1.5 }} />

@@ -331,6 +331,16 @@ export async function fetchCompanyDisplayName(supabase: SupabaseClient): Promise
   return v && v.length > 0 ? v : 'Your Rental Company'
 }
 
+/** Contact / admin line from `v2_app_settings.key === 'admin_number'` (optional on receipts). */
+export async function fetchAdminNumberDisplay(supabase: SupabaseClient): Promise<string> {
+  const { data } = await supabase
+    .from('v2_app_settings')
+    .select('value')
+    .eq('key', 'admin_number')
+    .maybeSingle()
+  return data?.value?.trim() ?? ''
+}
+
 export function currentMonthYyyyMm(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`

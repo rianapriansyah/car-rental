@@ -19,6 +19,7 @@ import { SettingsPage } from './portals/internal/settings/SettingsPage'
 import { PartnerAcceptInvitePage } from './portals/partner/PartnerAcceptInvitePage'
 import { PublicFleetPage } from './portals/public/PublicFleetPage'
 import { TvDisplayPage } from './portals/public/TvDisplayPage'
+import { VerifyReceiptPage } from './portals/public/VerifyReceiptPage'
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/public" replace />} />
           <Route path="/public" element={<PublicFleetPage />} />
           <Route path="/tv" element={<TvDisplayPage />} />
+          <Route path="/verify/:rentalId" element={<VerifyReceiptPage />} />
 
           <Route path="/login" element={<LoginPage />} />
           {/* Legacy login paths — redirect to unified /login */}

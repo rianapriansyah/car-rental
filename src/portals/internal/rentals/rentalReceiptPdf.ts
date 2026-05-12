@@ -1,8 +1,10 @@
 import { jsPDF } from 'jspdf'
 import { formatIdr } from '../../../lib/formatIdr'
+import { generateReceiptQrDataUrl } from '../../../lib/receiptQr'
 import type { RentalWithCar } from '../../../types/rental'
 import {
   buildDetailRows,
+  buildReceiptLineItems,
   formatReceiptDateTime,
   formatReceiptToday,
   receiptNumber,
@@ -33,12 +35,23 @@ function drawLine(doc: jsPDF, margin: number, y: number, pageW: number) {
 }
 
 /** Builds and triggers download of a rental receipt PDF (content mirrors the on-screen kuitansi). */
-export function downloadRentalReceiptPdf(rental: RentalWithCar, companyName: string): void {
+export async function downloadRentalReceiptPdf(
+  rental: RentalWithCar,
+  companyName: string,
+  adminNumber = '',
+  verificationUrl?: string,
+): Promise<void> {
+  const qrDataUrl =
+    verificationUrl && verificationUrl.trim().length > 0
+      ? await generateReceiptQrDataUrl(verificationUrl.trim())
+      : undefined
+
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
   const margin = 16
   const contentW = pageW - 2 * margin
-  let y = 18
+  const titleY = 18
+  let y = titleY
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(18)
@@ -50,6 +63,14 @@ export function downloadRentalReceiptPdf(rental: RentalWithCar, companyName: str
   doc.setTextColor(...MUTED)
   doc.text(companyName, margin, y + 6)
 
+  let leftColumnBottom = y + 6
+  const admin = adminNumber.trim()
+  if (admin.length > 0) {
+    doc.setFontSize(9)
+    doc.text(admin, margin, y + 11)
+    leftColumnBottom = y + 11
+  }
+
   const num = receiptNumber(rental)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
@@ -60,7 +81,8 @@ export function downloadRentalReceiptPdf(rental: RentalWithCar, companyName: str
   doc.setTextColor(20, 20, 20)
   doc.text(num, pageW - margin, y + 6, { align: 'right' })
 
-  y += 16
+  const rightBlockBottom = y + 6
+  y = Math.max(leftColumnBottom, rightBlockBottom) + 5
   drawLine(doc, margin, y, pageW)
   y += 8
 
@@ -139,9 +161,43 @@ export function downloadRentalReceiptPdf(rental: RentalWithCar, companyName: str
   y += 8
 
   section('Rincian')
-  const rows = buildDetailRows(rental)
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i]
+  const lineItems = buildReceiptLineItems(rental)
+  const payRows = buildDetailRows(rental)
+
+  const colDurasi = margin + 54
+  const colTarifR = margin + 98
+  const colTotalR = pageW - margin
+  const lineH = 5.8
+
+  if (lineItems.length > 0) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(...MUTED)
+    doc.text('Item', margin, y)
+    doc.text('Durasi', colDurasi, y)
+    doc.text('Tarif Harian', colTarifR, y, { align: 'right' })
+    doc.text('Total', colTotalR, y, { align: 'right' })
+    y += lineH * 0.65
+    drawLine(doc, margin, y, pageW)
+    y += lineH * 0.85
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(20, 20, 20)
+    for (const ln of lineItems) {
+      doc.text(ln.item, margin, y, { maxWidth: 48 })
+      doc.text(ln.durasi, colDurasi, y)
+      doc.setFont('helvetica', 'bold')
+      doc.text(ln.tarifHarian, colTarifR, y, { align: 'right' })
+      doc.text(ln.total, colTotalR, y, { align: 'right' })
+      doc.setFont('helvetica', 'normal')
+      y += lineH
+    }
+    y += 2
+  }
+
+  for (let i = 0; i < payRows.length; i++) {
+    const r = payRows[i]
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
     doc.setTextColor(...MUTED)
@@ -180,6 +236,17 @@ export function downloadRentalReceiptPdf(rental: RentalWithCar, companyName: str
     const noteLines = doc.splitTextToSize(note, contentW)
     doc.text(noteLines, margin, y)
     y += noteLines.length * 4 + 4
+  }
+
+  if (qrDataUrl) {
+    const qrMm = 32
+    const qrX = pageW - margin - qrMm
+    doc.addImage(qrDataUrl, 'PNG', qrX, y, qrMm, qrMm)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(...MUTED)
+    doc.text('Pindai untuk verifikasi', pageW - margin, y + qrMm + 3.5, { align: 'right' })
+    y += qrMm + 8
   }
 
   y += 6

@@ -43,6 +43,7 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
   const [durationDays, setDurationDays] = useState('')
   const [downPayment, setDownPayment] = useState('')
   const [isManual, setIsManual] = useState(false)
+  const [includeDriver, setIncludeDriver] = useState(false)
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -59,6 +60,7 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
     setDurationDays('')
     setDownPayment('')
     setIsManual(false)
+    setIncludeDriver(false)
     setNote('')
     void supabase
       .from('v2_cars')
@@ -161,6 +163,7 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
         status: 'active',
         is_manual: isManual,
         manual_note: note.trim() || null,
+        include_driver: includeDriver,
       })
       .select('id')
       .single()
@@ -275,6 +278,10 @@ export function RentalFormDialog({ open, onClose, onSaved }: Props) {
             inputMode="numeric"
             fullWidth
             helperText="Opsional. Tercatat sebagai DP sewa; saat selesai isi sisa bayar (bukan total)."
+          />
+          <FormControlLabel
+            control={<Switch checked={includeDriver} onChange={(_, v) => setIncludeDriver(v)} size="small" />}
+            label="Sertakan sopir"
           />
           <TextField
             size="small"

@@ -6,6 +6,8 @@ import { supabase } from '../../lib/supabase'
 import { useV2RealtimeRefresh } from '../../hooks/useV2RealtimeRefresh'
 import { formatIdr } from '../../lib/formatIdr'
 import { calcCost, type CostBreakdown } from '../../lib/rentalCost'
+import { calcDriverFeeVariantA } from '../../lib/driverFee'
+import { elapsedHoursRentalReference } from '../../lib/rentalElapsedHours'
 import { fetchCompanyDisplayName } from '../../lib/ledgerPdf'
 import type { Tables } from '../../types/database'
 
@@ -84,6 +86,7 @@ export function TvDisplayPage() {
   const [rentals, setRentals] = useState<ActiveRental[]>([])
   const [companyName, setCompanyName] = useState('')
   const [overtimeRate, setOvertimeRate] = useState(25000)
+  const [dailyDriverRate, setDailyDriverRate] = useState(0)
   const [now, setNow] = useState(() => dayjs())
   const scrollRef = useRef<HTMLDivElement>(null)
   const pauseRef = useRef(false)
@@ -95,22 +98,24 @@ export function TvDisplayPage() {
   }, [])
 
   const load = useCallback(async () => {
-    const [{ data: rentalData }, { data: settingData }, displayName] = await Promise.all([
-      supabase
-        .from('v2_rentals')
-        .select('*, v2_cars(name, plate, daily_rate)')
-        .eq('status', 'active')
-        .order('start_date', { ascending: true }),
-      supabase
-        .from('v2_app_settings')
-        .select('value')
-        .eq('key', 'overtime_hourly_rate')
-        .maybeSingle(),
-      fetchCompanyDisplayName(supabase),
-    ])
+    const [{ data: rentalData }, { data: settingData }, { data: dailyDriverSetting }, displayName] =
+      await Promise.all([
+        supabase
+          .from('v2_rentals')
+          .select('*, v2_cars(name, plate, daily_rate)')
+          .eq('status', 'active')
+          .order('start_date', { ascending: true }),
+        supabase.from('v2_app_settings').select('value').eq('key', 'overtime_hourly_rate').maybeSingle(),
+        supabase.from('v2_app_settings').select('value').eq('key', 'daily_driver_rate').maybeSingle(),
+        fetchCompanyDisplayName(supabase),
+      ])
     setRentals((rentalData ?? []) as ActiveRental[])
     setCompanyName(displayName)
     if (settingData?.value) setOvertimeRate(Number(settingData.value))
+    if (dailyDriverSetting?.value != null) {
+      const n = Number(dailyDriverSetting.value)
+      if (Number.isFinite(n) && n > 0) setDailyDriverRate(n)
+    }
   }, [])
 
   useEffect(() => {
@@ -342,7 +347,15 @@ export function TvDisplayPage() {
               rentals.map((r, i) => {
                 const bd = calcBreakdown(r, now, overtimeRate)
                 const dp = r.down_payment ?? 0
-                const gross = bd?.total ?? 0
+                const elapsedH =
+                  bd != null
+                    ? bd.elapsedHours
+                    : elapsedHoursRentalReference(r.start_date, r.start_time, now.valueOf())
+                const driverFee =
+                  elapsedH > 0
+                    ? calcDriverFeeVariantA(elapsedH, dailyDriverRate, !!r.include_driver)
+                    : 0
+                const gross = (bd?.total ?? 0) + driverFee
                 const sisa = Math.max(0, gross - dp)
                 const hasOt = (bd?.overtimeHours ?? 0) > 0
 

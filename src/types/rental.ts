@@ -4,5 +4,5 @@ export type RentalRow = Tables<'v2_rentals'>
 export type RentalStatus = 'active' | 'completed' | 'cancelled'
 
 export type RentalWithCar = RentalRow & {
-  v2_cars: { name: string; plate: string } | null
+  v2_cars: { name: string; plate: string; daily_rate?: number | null } | null
 }

@@ -30,12 +30,6 @@ function formatElapsedLabel(hours: number): string {
   return sub.length > 0 ? sub.join(' ') : `${remM}m`
 }
 
-function elapsedHoursFromNow(rental: InvoiceRentalInput): number {
-  const startStr = `${rental.start_date}T${rental.start_time ?? '00:00:00'}`
-  const diffMs = Date.now() - new Date(startStr).getTime()
-  return Math.max(0, diffMs / 3_600_000)
-}
-
 // ─── WhatsApp message builder ─────────────────────────────────────────────────
 
 export function buildInvoiceWhatsAppMessage(
@@ -53,13 +47,14 @@ export function buildInvoiceWhatsAppMessage(
     subtotal,
     dp,
     sisaTagihan,
+    driverFee,
+    elapsedHours,
   } = totals
   const carLabel = rental.v2_cars
     ? `${rental.v2_cars.name} (${rental.v2_cars.plate})`
     : 'kendaraan'
 
-  const elapsed = elapsedHoursFromNow(rental)
-  const elapsedStr = elapsed > 0 ? formatElapsedLabel(elapsed) : '—'
+  const elapsedStr = elapsedHours > 0 ? formatElapsedLabel(elapsedHours) : '—'
 
   const showBreakdown = overtimeHours > 0 && overtimeCost > 0
 
@@ -78,6 +73,7 @@ export function buildInvoiceWhatsAppMessage(
     showBreakdown
       ? `${overtimeHours} jam OT × ${formatIdr(overtimeRate)}: ${formatIdr(overtimeCost)}`
       : null,
+    driverFee > 0 ? `*Biaya sopir*: ${formatIdr(driverFee)}` : null,
     `*Total*: ${formatIdr(subtotal)}`,
     dp > 0 ? `*DP*: ${formatIdr(dp)}` : null,
     `*Sisa Tagihan*: ${formatIdr(sisaTagihan)}`,

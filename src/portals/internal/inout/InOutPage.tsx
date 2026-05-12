@@ -34,6 +34,7 @@ import { completeRentalWithIncome } from '../../../lib/feeEngine'
 import { formatIdr } from '../../../lib/formatIdr'
 import { insertDownPaymentIncomeTransaction } from '../../../lib/rentalDownPaymentTxn'
 import { calcCost, type CostBreakdown } from '../../../lib/rentalCost'
+import { calcDriverFeeVariantA } from '../../../lib/driverFee'
 import { fetchCompanyDisplayName } from '../../../lib/ledgerPdf'
 import { buildWhatsAppMeUrlWithMessage } from '../../../lib/whatsappLink'
 import {
@@ -146,7 +147,9 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
   const [durationDays, setDurationDays] = useState('')
   const [downPayment, setDownPayment] = useState('')
   const [isManual, setIsManual] = useState(false)
+  const [includeDriver, setIncludeDriver] = useState(false)
   const [note, setNote] = useState('')
+  const [dailyDriverRatePreview, setDailyDriverRatePreview] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
@@ -197,6 +200,23 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
   useEffect(() => {
     void loadCars()
   }, [loadCars])
+
+  useEffect(() => {
+    let cancelled = false
+    void supabase
+      .from('v2_app_settings')
+      .select('value')
+      .eq('key', 'daily_driver_rate')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || data?.value == null) return
+        const n = Number(data.value)
+        if (Number.isFinite(n) && n > 0) setDailyDriverRatePreview(n)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!carId || !startDate) {
@@ -255,6 +275,7 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
     setDurationDays('')
     setDownPayment('')
     setIsManual(false)
+    setIncludeDriver(false)
     setNote('')
     setError(null)
     void loadCars()
@@ -364,6 +385,7 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
         status: 'active',
         is_manual: isManual,
         manual_note: note.trim() || null,
+        include_driver: includeDriver,
       })
       .select('id')
       .single()
@@ -494,6 +516,23 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
         />
       </Box>
 
+      <FormControlLabel
+        control={
+          <Switch checked={includeDriver} onChange={(_, v) => setIncludeDriver(v)} size="small" />
+        }
+        label={
+          dailyDriverRatePreview != null ? (
+            <Typography component="span" variant="body2">
+              Sertakan sopir (acuan ±{formatIdr(Math.round(dailyDriverRatePreview / 2))} / blok 12 jam)
+            </Typography>
+          ) : (
+            <Typography component="span" variant="body2">
+              Sertakan sopir
+            </Typography>
+          )
+        }
+      />
+
       <TextField
         size="small"
         label="Catatan (mis. level bahan bakar, kondisi)"
@@ -536,6 +575,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const [overtimeRate, setOvertimeRate] = useState(25000)
   const [selectedId, setSelectedId] = useState('')
   const [gross, setGross] = useState('')
+  const [driverFeeInput, setDriverFeeInput] = useState('')
   const [endDate, setEndDate] = useState<Dayjs | null>(dayjs())
   const [endTime, setEndTime] = useState<Dayjs | null>(dayjs())
   const [checkOutNote, setCheckOutNote] = useState('')
@@ -551,6 +591,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const [companyName, setCompanyName] = useState('')
   const [bankAccount, setBankAccount] = useState('')
   const [tarifInfoOpen, setTarifInfoOpen] = useState(false)
+  const [dailyDriverRate, setDailyDriverRate] = useState(0)
 
   useEffect(() => {
     void supabase
@@ -560,6 +601,17 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
       .maybeSingle()
       .then(({ data }) => {
         if (data?.value) setOvertimeRate(Number(data.value))
+      })
+    void supabase
+      .from('v2_app_settings')
+      .select('value')
+      .eq('key', 'daily_driver_rate')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.value != null) {
+          const n = Number(data.value)
+          if (Number.isFinite(n) && n > 0) setDailyDriverRate(n)
+        }
       })
     void fetchCompanyDisplayName(supabase).then(setCompanyName)
     void supabase
@@ -606,6 +658,26 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     return calcCost(elapsed, dailyRate, overtimeRate)
   }, [selected, overtimeRate, completionMoment])
 
+  const checkoutDriverFee = useMemo(() => {
+    if (!selected?.start_date || !completionMoment) return 0
+    const elapsed = calcElapsedHours(selected.start_date, selected.start_time ?? null, completionMoment)
+    if (elapsed < 0) return 0
+    return calcDriverFeeVariantA(elapsed, dailyDriverRate, !!selected.include_driver)
+  }, [selected, completionMoment, dailyDriverRate])
+
+  const combinedRefTotal = useMemo(() => {
+    const vehiclePart = costBreakdown?.total
+    const hasVehicle = vehiclePart != null
+    if (!hasVehicle && checkoutDriverFee <= 0) return null
+    return (vehiclePart ?? 0) + checkoutDriverFee
+  }, [costBreakdown, checkoutDriverFee])
+
+  const refElapsedHours = useMemo(() => {
+    if (!selected?.start_date || !completionMoment) return null
+    const e = calcElapsedHours(selected.start_date, selected.start_time ?? null, completionMoment)
+    return e >= 0 ? e : null
+  }, [selected, completionMoment])
+
   async function handleComplete() {
     if (!selectedId || !selected) return
     const grossInput = Number(gross.replace(/\D/g, ''))
@@ -613,9 +685,16 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
       setError('Masukkan jumlah pendapatan kotor yang valid (IDR).')
       return
     }
-    const totalGrossIncome = downPayment + grossInput
+    const driverFeeParsed = selected.include_driver
+      ? Number(driverFeeInput.replace(/\D/g, '') || 0)
+      : 0
+    if (!Number.isFinite(driverFeeParsed) || driverFeeParsed < 0) {
+      setError('Biaya sopir harus berupa angka yang valid.')
+      return
+    }
+    const totalGrossIncome = downPayment + grossInput + driverFeeParsed
     if (totalGrossIncome <= 0) {
-      setError('Total pendapatan kotor (DP + jumlah saat selesai) harus lebih dari 0.')
+      setError('Total pendapatan kotor (DP + sisa pembayaran + biaya sopir) harus lebih dari 0.')
       return
     }
     setBusy(true)
@@ -650,13 +729,14 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
       mileageKm = Math.round(n)
     }
 
-    const { error: doneError } = await completeRentalWithIncome(
-      selectedId,
-      totalGrossIncome,
-      combinedNote,
-      completionAt,
-      selected.car_id ? { carId: selected.car_id, mileageKm } : undefined,
-    )
+    const driverSnap =
+      selected.include_driver && driverFeeParsed > 0 ? driverFeeParsed : null
+
+    const { error: doneError } = await completeRentalWithIncome(selectedId, totalGrossIncome, combinedNote, completionAt, {
+      ...(selected.car_id ? { carId: selected.car_id } : {}),
+      ...(mileageKm != null ? { mileageKm } : {}),
+      driverFeeSnapshot: driverSnap,
+    })
     if (doneError) {
       setBusy(false)
       setError(doneError.message)
@@ -711,6 +791,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     setSuccess(`${label} selesai. Total: ${formatIdr(totalGrossIncome)}.`)
     setSelectedId('')
     setGross('')
+    setDriverFeeInput('')
     setEndDate(dayjs())
     setEndTime(dayjs())
     setCheckOutNote('')
@@ -723,8 +804,8 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
 
   function handleKirimTagihan() {
     if (!selected) return
-    const totals = calcInvoiceTotals(selected, overtimeRate)
-    generateRentalInvoicePdf(selected, companyName, bankAccount, overtimeRate)
+    const totals = calcInvoiceTotals(selected, overtimeRate, dailyDriverRate)
+    generateRentalInvoicePdf(selected, companyName, bankAccount, overtimeRate, dailyDriverRate)
     if (selected.renter_phone) {
       const msg = buildInvoiceWhatsAppMessage(selected, totals, bankAccount)
       const waUrl = buildWhatsAppMeUrlWithMessage(selected.renter_phone, msg)
@@ -799,6 +880,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
     setSuccess(`Sewa dibatalkan. ${label} — data penyewa di info penyewa tidak diubah.`)
     setSelectedId('')
     setGross('')
+    setDriverFeeInput('')
     setEndDate(dayjs())
     setEndTime(dayjs())
     setCheckOutNote('')
@@ -823,6 +905,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
           onChange={(e) => {
             setSelectedId(e.target.value)
             setGross('')
+            setDriverFeeInput('')
             setEndDate(dayjs())
             setEndTime(dayjs())
             setCheckOutNote('')
@@ -865,6 +948,9 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
             {selected.end_date ? <Chip size="small" label={`Selesai: ${selected.end_date}`} /> : null}
             {downPayment > 0 ? (
               <Chip size="small" color="info" label={`DP: ${formatIdr(downPayment)}`} />
+            ) : null}
+            {selected.include_driver ? (
+              <Chip size="small" color="secondary" variant="outlined" label="Paket sopir" />
             ) : null}
           </Box>
         </Paper>
@@ -913,32 +999,41 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
           <Typography variant="body2" sx={{ mb: 0.5 }}>
             Berlangsung:{' '}
             <strong>
-              {costBreakdown ? formatElapsed(costBreakdown.elapsedHours) : '—'}
+              {costBreakdown
+                ? formatElapsed(costBreakdown.elapsedHours)
+                : refElapsedHours != null
+                  ? formatElapsed(refElapsedHours)
+                  : '—'}
             </strong>
             {selected.start_time ? (
               <Typography component="span" variant="caption" color="text.secondary"> (sejak {selected.start_date} {selected.start_time})</Typography>
             ) : null}
           </Typography>
-          {costBreakdown ? (
+          {combinedRefTotal != null ? (
             <>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
-                <Chip size="small" label={`${costBreakdown.fullDays}d × ${formatIdr(selected.v2_cars!.daily_rate!)} = ${formatIdr(costBreakdown.dailyCost)}`} />
-                {costBreakdown.overtimeHours > 0 ? (
-                  <Chip size="small" color="warning" label={`${costBreakdown.overtimeHours}h OT × ${formatIdr(overtimeRate)} = ${formatIdr(costBreakdown.overtimeCost)}`} />
-                ) : null}
-              </Box>
-              {costBreakdown.overtimeHours > 0 ? (
-                <Typography variant="body2" sx={{ mb: 0.25 }}>
-                  Total: <strong>{formatIdr(costBreakdown.total)}</strong>
-                </Typography>
+              {costBreakdown ? (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
+                  <Chip size="small" label={`${costBreakdown.fullDays}d × ${formatIdr(selected.v2_cars!.daily_rate!)} = ${formatIdr(costBreakdown.dailyCost)}`} />
+                  {costBreakdown.overtimeHours > 0 ? (
+                    <Chip size="small" color="warning" label={`${costBreakdown.overtimeHours}h OT × ${formatIdr(overtimeRate)} = ${formatIdr(costBreakdown.overtimeCost)}`} />
+                  ) : null}
+                </Box>
               ) : null}
+              {checkoutDriverFee > 0 ? (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
+                  <Chip size="small" color="info" variant="outlined" label={`Sopir: ${formatIdr(checkoutDriverFee)}`} />
+                </Box>
+              ) : null}
+              <Typography variant="body2" sx={{ mb: 0.25 }}>
+                Total referensi: <strong>{formatIdr(combinedRefTotal)}</strong>
+              </Typography>
               {downPayment > 0 ? (
                 <Typography variant="body2">
-                  Sisa tagihan: <strong>{formatIdr(Math.max(0, costBreakdown.total - downPayment))}</strong>
+                  Sisa tagihan: <strong>{formatIdr(Math.max(0, combinedRefTotal - downPayment))}</strong>
                 </Typography>
               ) : null}
               <Typography variant="caption" color="text.secondary">Hanya referensi — masukkan jumlah aktual di bawah.</Typography>
-              {Math.max(0, costBreakdown.total - downPayment) > 0 ? (
+              {Math.max(0, combinedRefTotal - downPayment) > 0 ? (
                 <Box sx={{ display: 'flex', mt: 1 }}>
                   <Button
                     size="small"
@@ -953,7 +1048,12 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
             </>
           ) : (
             <Typography variant="caption" color="text.secondary">
-              {selected.v2_cars?.daily_rate == null ? 'Tarif harian belum diatur untuk kendaraan ini.' : null}
+              {selected.v2_cars?.daily_rate == null && !selected.include_driver
+                ? 'Tarif harian belum diatur untuk kendaraan ini.'
+                : null}
+              {selected.include_driver && dailyDriverRate <= 0 ? (
+                <>Atur pengaturan aplikasi <strong>daily_driver_rate</strong> untuk hitung sopir.</>
+              ) : null}
             </Typography>
           )}
         </Paper>
@@ -968,11 +1068,32 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         fullWidth
         disabled={!selectedId}
         helperText={
-          downPayment > 0
-            ? `DP ${formatIdr(downPayment)} sudah tercatat di transaksi. Total kotor = DP + isian ini.`
-            : 'Jumlah yang diterima saat selesai (total sewa jika tanpa DP).'
+          selected?.include_driver
+            ? downPayment > 0
+              ? `Hanya bagian kendaraan (sisa sewa mobil). Total kotor = DP + sisa ini + biaya sopir.`
+              : `Hanya bagian kendaraan. Total kotor = sisa ini + biaya sopir (tanpa DP).`
+            : downPayment > 0
+              ? `DP ${formatIdr(downPayment)} sudah tercatat di transaksi. Total kotor = DP + isian ini.`
+              : 'Jumlah yang diterima saat selesai (total sewa jika tanpa DP).'
         }
       />
+
+      {selected?.include_driver ? (
+        <TextField
+          size="small"
+          label="Driver fee (IDR)"
+          value={driverFeeInput}
+          onChange={(e) => setDriverFeeInput(e.target.value.replace(/\D/g, ''))}
+          inputMode="numeric"
+          fullWidth
+          disabled={!selectedId}
+          helperText={
+            checkoutDriverFee > 0 && dailyDriverRate > 0
+              ? `Acuan dari durasi & tarif sopir: ${formatIdr(checkoutDriverFee)}. Isi sesuai bayar ke sopir.`
+              : 'Bagian sopir (terpisah dari sisa pembayaran kendaraan).'
+          }
+        />
+      ) : null}
 
       <TextField
         size="small"
@@ -989,10 +1110,16 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         }
       />
 
-      {selectedId && gross ? (
+      {selectedId && (gross || (selected?.include_driver && driverFeeInput)) ? (
         <Typography variant="body2" color="text.secondary">
           Total pendapatan kotor:{' '}
-          <strong>{formatIdr(downPayment + Number(gross.replace(/\D/g, '') || 0))}</strong>
+          <strong>
+            {formatIdr(
+              downPayment +
+                Number(gross.replace(/\D/g, '') || 0) +
+                (selected?.include_driver ? Number(driverFeeInput.replace(/\D/g, '') || 0) : 0),
+            )}
+          </strong>
         </Typography>
       ) : null}
 

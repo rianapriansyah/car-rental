@@ -1,7 +1,9 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { formatIdr } from '../../../lib/formatIdr'
-import { calcCost } from '../../../lib/rentalCost'
+import { calcDriverFeeVariantA } from '../../../lib/driverFee'
+import { elapsedHoursRentalReference } from '../../../lib/rentalElapsedHours'
+import { calcCost, type CostBreakdown } from '../../../lib/rentalCost'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -16,6 +18,7 @@ export type InvoiceRentalInput = {
   duration_days: number | null
   down_payment: number | null
   status: string
+  include_driver?: boolean | null
   v2_cars: { name: string; plate: string; daily_rate: number | null } | null
 }
 
@@ -35,11 +38,15 @@ export function invoiceDays(rental: InvoiceRentalInput): number {
 }
 
 export type InvoiceTotals = {
-  /** Number of full days charged at daily rate (matches `calcCost.fullDays` when overtime applies). */
+  /** Elapsed hours from start to invoice reference instant (vehicle + driver). */
+  elapsedHours: number
+  /** Non-null when daily rate and elapsed support OT reference model. */
+  costBreakdown: CostBreakdown | null
+  /** Number of full days charged at daily rate (matches `calcCost.fullDays` when breakdown exists). */
   days: number
   /** Daily rate at time of billing. */
   dailyRate: number
-  /** Cost of the daily portion only (`days × dailyRate`). */
+  /** Cost of the daily portion only (`days × dailyRate` in OT model). */
   dailyCost: number
   /** Hours of overtime billed (already ceiled per segment). */
   overtimeHours: number
@@ -47,7 +54,11 @@ export type InvoiceTotals = {
   overtimeRate: number
   /** Cost of the overtime portion only (`overtimeHours × overtimeRate`). */
   overtimeCost: number
-  /** Total amount due before DP — `dailyCost + overtimeCost`. */
+  /** Vehicle subtotal only (before driver package). */
+  vehicleSubtotal: number
+  /** Driver surcharge (Variant A); 0 when not included. */
+  driverFee: number
+  /** Vehicle + driver, before DP. */
   subtotal: number
   /** Down payment recorded for this rental. */
   dp: number
@@ -63,36 +74,41 @@ export type InvoiceTotals = {
 export function calcInvoiceTotals(
   rental: InvoiceRentalInput,
   overtimeRate = 0,
+  dailyDriverRate = 0,
+  referenceMs?: number,
 ): InvoiceTotals {
+  const until = referenceMs ?? Date.now()
   const dailyRate = rental.v2_cars?.daily_rate ?? 0
   const dp = Math.max(0, Number(rental.down_payment ?? 0))
-  const elapsed = elapsedHoursFromNow(rental)
-  const bd = dailyRate > 0 && elapsed > 0 ? calcCost(elapsed, dailyRate, overtimeRate) : null
+  const elapsedHours = elapsedHoursRentalReference(rental.start_date, rental.start_time, until)
 
-  if (bd) {
-    const subtotal = bd.total
-    return {
-      days: bd.fullDays,
-      dailyRate,
-      dailyCost: bd.dailyCost,
-      overtimeHours: bd.overtimeHours,
-      overtimeRate,
-      overtimeCost: bd.overtimeCost,
-      subtotal,
-      dp,
-      sisaTagihan: Math.max(0, subtotal - dp),
-    }
+  let costBreakdown: CostBreakdown | null = null
+  let days: number
+  let vehicleSubtotal: number
+
+  if (dailyRate > 0 && elapsedHours > 0) {
+    costBreakdown = calcCost(elapsedHours, dailyRate, overtimeRate)
+    days = costBreakdown.fullDays
+    vehicleSubtotal = costBreakdown.total
+  } else {
+    days = invoiceDays(rental)
+    vehicleSubtotal = days * dailyRate
   }
 
-  const days = invoiceDays(rental)
-  const subtotal = days * dailyRate
+  const driverFee = calcDriverFeeVariantA(elapsedHours, dailyDriverRate, !!rental.include_driver)
+  const subtotal = vehicleSubtotal + driverFee
+
   return {
+    elapsedHours,
+    costBreakdown,
     days,
     dailyRate,
-    dailyCost: subtotal,
-    overtimeHours: 0,
+    dailyCost: costBreakdown?.dailyCost ?? vehicleSubtotal,
+    overtimeHours: costBreakdown?.overtimeHours ?? 0,
     overtimeRate,
-    overtimeCost: 0,
+    overtimeCost: costBreakdown?.overtimeCost ?? 0,
+    vehicleSubtotal,
+    driverFee,
     subtotal,
     dp,
     sisaTagihan: Math.max(0, subtotal - dp),
@@ -118,13 +134,6 @@ function formatElapsedLabel(hours: number): string {
     return sub.length > 0 ? `${days} hari (${sub.join(' ')})` : `${days} hari`
   }
   return sub.length > 0 ? sub.join(' ') : `${remM}m`
-}
-
-/** Elapsed hours from rental start to now */
-function elapsedHoursFromNow(rental: InvoiceRentalInput): number {
-  const startStr = `${rental.start_date}T${rental.start_time ?? '00:00:00'}`
-  const diffMs = Date.now() - new Date(startStr).getTime()
-  return Math.max(0, diffMs / 3_600_000)
 }
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
@@ -182,6 +191,7 @@ export function generateRentalInvoicePdf(
   companyName: string,
   bankAccount = '',
   overtimeRate = 0,
+  dailyDriverRate = 0,
 ): void {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
@@ -189,14 +199,22 @@ export function generateRentalInvoicePdf(
   const M = 16
   const contentW = pageW - 2 * M
 
-  // ── Compute totals from real elapsed time ─────────────────────────────────
-  const dailyRate = rental.v2_cars?.daily_rate ?? 0
-  const dp = Math.max(0, Number(rental.down_payment ?? 0))
-  const elapsed = elapsedHoursFromNow(rental)
-  const bd = dailyRate > 0 && elapsed > 0 ? calcCost(elapsed, dailyRate, overtimeRate) : null
-  const subtotal = bd ? bd.total : invoiceDays(rental) * dailyRate
-  const sisaTagihan = Math.max(0, subtotal - dp)
-  const elapsedLabel = bd ? formatElapsedLabel(bd.elapsedHours) : '—'
+  const totals = calcInvoiceTotals(rental, overtimeRate, dailyDriverRate)
+  const {
+    subtotal,
+    sisaTagihan,
+    dp,
+    driverFee,
+    elapsedHours,
+    costBreakdown: bd,
+    dailyRate,
+  } = totals
+  const elapsedLabel =
+    bd != null
+      ? formatElapsedLabel(bd.elapsedHours)
+      : elapsedHours > 0
+        ? formatElapsedLabel(elapsedHours)
+        : '—'
   const isPaid = sisaTagihan <= 0 && subtotal > 0
 
   const invNum = invoiceNumber(rental)
@@ -355,6 +373,14 @@ export function generateRentalInvoicePdf(
         formatIdr(bd.overtimeCost),
       ])
     }
+    if (driverFee > 0 && dailyDriverRate > 0) {
+      tableRows.push([
+        'Biaya sopir',
+        formatElapsedLabel(elapsedHours),
+        formatIdr(dailyDriverRate) + ' /hari',
+        formatIdr(driverFee),
+      ])
+    }
   } else {
     const days = invoiceDays(rental)
     tableRows.push([
@@ -363,6 +389,14 @@ export function generateRentalInvoicePdf(
       dailyRate > 0 ? formatIdr(dailyRate) : '—',
       dailyRate > 0 ? formatIdr(days * dailyRate) : '—',
     ])
+    if (driverFee > 0 && dailyDriverRate > 0) {
+      tableRows.push([
+        'Biaya sopir',
+        formatElapsedLabel(elapsedHours),
+        formatIdr(dailyDriverRate) + ' /hari',
+        formatIdr(driverFee),
+      ])
+    }
   }
 
   autoTable(doc, {

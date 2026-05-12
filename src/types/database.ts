@@ -347,8 +347,10 @@ export type Database = {
           duration_days: number | null
           down_payment: number | null
           gross_income: number | null
+          driver_fee: number | null
           status: string
           is_manual: boolean | null
+          include_driver: boolean
           manual_note: string | null
           created_at: string | null
         }
@@ -364,8 +366,10 @@ export type Database = {
           duration_days?: number | null
           down_payment?: number | null
           gross_income?: number | null
+          driver_fee?: number | null
           status?: string
           is_manual?: boolean | null
+          include_driver?: boolean
           manual_note?: string | null
           created_at?: string | null
         }
@@ -381,8 +385,10 @@ export type Database = {
           duration_days?: number | null
           down_payment?: number | null
           gross_income?: number | null
+          driver_fee?: number | null
           status?: string
           is_manual?: boolean | null
+          include_driver?: boolean
           manual_note?: string | null
           created_at?: string | null
         }
@@ -486,6 +492,10 @@ export type Database = {
       complete_rental: {
         Args: { p_rental_id: string }
         Returns: undefined
+      }
+      get_rental_verification_snapshot: {
+        Args: { p_rental_id: string }
+        Returns: Json | null
       }
     }
     Enums: {

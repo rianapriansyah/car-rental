@@ -39,12 +39,46 @@ export type ReceiptDetailRow = {
   value: string
 }
 
-/** Baris rincian: kiri = label, kanan = nilai (tanpa tarif acuan). */
+export type ReceiptLineItem = {
+  item: string
+  durasi: string
+  tarifHarian: string
+  total: string
+}
+
+/** Rows for Item | Durasi | Tarif Harian | Total (mobil + driver jika ada). */
+export function buildReceiptLineItems(row: RentalWithCar): ReceiptLineItem[] {
+  const days = rentalDurationDays(row)
+  const durasiStr = `${days} hari`
+  const out: ReceiptLineItem[] = []
+
+  const dr = Number(row.v2_cars?.daily_rate ?? 0)
+  if (Number.isFinite(dr) && dr > 0) {
+    out.push({
+      item: 'Sewa Mobil',
+      durasi: durasiStr,
+      tarifHarian: formatIdr(dr),
+      total: formatIdr(Math.round(days * dr)),
+    })
+  }
+
+  const driverFee = Number(row.driver_fee ?? 0)
+  if (driverFee > 0 && days > 0) {
+    const perDay = Math.round(driverFee / days)
+    out.push({
+      item: 'Jasa Driver',
+      durasi: durasiStr,
+      tarifHarian: formatIdr(perDay),
+      total: formatIdr(driverFee),
+    })
+  }
+
+  return out
+}
+
+/** Baris pembayaran (DP / pelunasan / tunggal). */
 export function buildDetailRows(row: RentalWithCar): ReceiptDetailRow[] {
   const out: ReceiptDetailRow[] = []
-  const days = rentalDurationDays(row)
-  out.push({ key: 'Durasi sewa', value: `${days} hari` })
-
   const dp = Number(row.down_payment ?? 0)
   const gross = Number(row.gross_income ?? 0)
 
@@ -52,9 +86,9 @@ export function buildDetailRows(row: RentalWithCar): ReceiptDetailRow[] {
     out.push({ key: 'Uang muka (DP)', value: formatIdr(dp) })
     out.push({ key: 'Pelunasan', value: formatIdr(gross - dp) })
   } else if (dp > 0 && gross === dp) {
-    out.push({ key: 'Pembayaran', value: formatIdr(gross) })
+    out.push({ key: 'Tagihan keseluruhan', value: formatIdr(gross) })
   } else if (gross > 0) {
-    out.push({ key: 'Pembayaran', value: formatIdr(gross) })
+    out.push({ key: 'Tagihan keseluruhan', value: formatIdr(gross) })
   }
 
   return out

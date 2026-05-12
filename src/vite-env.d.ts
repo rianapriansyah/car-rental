@@ -6,6 +6,8 @@ interface ImportMetaEnv {
   readonly VITE_SHOW_ADMIN_BOOTSTRAP?: string
   /** Optional. Origin for invite email redirect (e.g. https://app.example.com). Defaults to window.location.origin. */
   readonly VITE_PARTNER_INVITE_ORIGIN?: string
+  /** Public origin for receipt QR links (e.g. https://rental.example.com). Defaults to window.location.origin when unset. */
+  readonly VITE_PUBLIC_SITE_URL?: string
 }
 
 interface ImportMeta {

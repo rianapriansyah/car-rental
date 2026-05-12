@@ -108,7 +108,7 @@ export function RentalsPage({ carId: lockedCarId }: RentalsPageProps = {}) {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    let q = supabase.from('v2_rentals').select('*, v2_cars(name, plate)').order('start_date', { ascending: false })
+    let q = supabase.from('v2_rentals').select('*, v2_cars(name, plate, daily_rate)').order('start_date', { ascending: false })
     if (rentalIdParam) {
       q = q.eq('id', rentalIdParam)
     } else if (lockedCarId) {

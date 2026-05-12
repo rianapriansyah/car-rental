@@ -9,6 +9,8 @@ export type CompleteRentalOptions = {
   /** When set with a non-negative number, updates `v2_cars.mileage` for this car after completion. */
   carId?: string
   mileageKm?: number | null
+  /** IDR snapped at checkout; excluded from ledger `rental_income` via `complete_rental`. */
+  driverFeeSnapshot?: number | null
 }
 
 /**
@@ -26,6 +28,12 @@ export async function completeRentalWithIncome(
   if (completionAt) {
     patch.end_date = completionAt.endDate
     patch.end_time = completionAt.endTime
+  }
+  if (
+    options != null &&
+    Object.prototype.hasOwnProperty.call(options, 'driverFeeSnapshot')
+  ) {
+    patch.driver_fee = options.driverFeeSnapshot ?? null
   }
 
   const { error: updateError } = await supabase

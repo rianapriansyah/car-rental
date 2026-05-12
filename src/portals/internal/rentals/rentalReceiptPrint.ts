@@ -1,12 +1,14 @@
 import type { RentalWithCar } from '../../../types/rental'
 import {
   buildDetailRows,
+  buildReceiptLineItems,
   formatReceiptDateTime,
   formatReceiptToday,
   receiptNumber,
   receiptTotal,
 } from './rentalReceiptFormat'
 import { formatIdr } from '../../../lib/formatIdr'
+import { generateReceiptQrDataUrl } from '../../../lib/receiptQr'
 
 const LEGAL_FOOTER =
   'Kuitansi ini dibuat secara elektronik oleh sistem dan berlaku sebagai bukti pembayaran sewa kendaraan yang sah sesuai data yang tercatat.'
@@ -20,9 +22,15 @@ function escapeHtml(s: string): string {
 }
 
 /** Full HTML document for printing — no MUI/CSS variables (iframes lack theme :root). */
-export function buildStandaloneReceiptHtml(rental: RentalWithCar, companyName: string): string {
+export function buildStandaloneReceiptHtml(
+  rental: RentalWithCar,
+  companyName: string,
+  adminNumber = '',
+  qrDataUrl?: string,
+): string {
   const issued = formatReceiptToday()
-  const detailRows = buildDetailRows(rental)
+  const lineItems = buildReceiptLineItems(rental)
+  const paymentRows = buildDetailRows(rental)
   const total = receiptTotal(rental)
   const note = rental.manual_note?.trim()
   const num = receiptNumber(rental)
@@ -31,7 +39,34 @@ export function buildStandaloneReceiptHtml(rental: RentalWithCar, companyName: s
   const carName = rental.v2_cars ? rental.v2_cars.name : '—'
   const carPlate = rental.v2_cars ? rental.v2_cars.plate : ''
 
-  const detailHtml = detailRows
+  const linesTableHtml =
+    lineItems.length > 0
+      ? `<table class="receipt-lines" role="presentation">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Durasi</th>
+        <th class="num">Tarif Harian</th>
+        <th class="num">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${lineItems
+        .map(
+          (ln) => `
+      <tr>
+        <td class="bold">${escapeHtml(ln.item)}</td>
+        <td>${escapeHtml(ln.durasi)}</td>
+        <td class="num">${escapeHtml(ln.tarifHarian)}</td>
+        <td class="num bold">${escapeHtml(ln.total)}</td>
+      </tr>`,
+        )
+        .join('')}
+    </tbody>
+  </table>`
+      : ''
+
+  const paymentHtml = paymentRows
     .map(
       (row) => `
     <div class="detail-row">
@@ -53,6 +88,13 @@ export function buildStandaloneReceiptHtml(rental: RentalWithCar, companyName: s
     : ''
 
   const plateHtml = carPlate ? `<p class="muted car-plate">${escapeHtml(carPlate)}</p>` : ''
+
+  const adminNumTrim = adminNumber.trim()
+  const adminNumHtml = adminNumTrim ? `<p class="admin-num">${escapeHtml(adminNumTrim)}</p>` : ''
+
+  const qrBlockHtml = qrDataUrl
+    ? `<img class="verify-qr" src="${qrDataUrl}" width="96" height="96" alt="Verifikasi digital"/>`
+    : ''
 
   const totalStr = total > 0 ? escapeHtml(formatIdr(total)) : '—'
 
@@ -83,6 +125,7 @@ export function buildStandaloneReceiptHtml(rental: RentalWithCar, companyName: s
     }
     .title { font-size: 1.35rem; font-weight: 800; margin: 0 0 6px 0; letter-spacing: -0.02em; color: #1a1a1a; }
     .company { color: #555; margin: 0; font-size: 0.9rem; }
+    .admin-num { color: #555; margin: 4px 0 0 0; font-size: 0.88rem; }
     .meta { text-align: right; flex-shrink: 0; }
     .badge {
       display: inline-block;
@@ -138,6 +181,31 @@ export function buildStandaloneReceiptHtml(rental: RentalWithCar, companyName: s
     .detail-row:last-child { border-bottom: none; }
     .detail-k { color: #555; }
     .detail-vr { font-weight: 700; text-align: right; white-space: nowrap; color: #1a1a1a; }
+    .receipt-lines {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 12px;
+      font-size: 0.9rem;
+    }
+    .receipt-lines th {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #555;
+      text-align: left;
+      padding: 8px 6px;
+      border-bottom: 2px solid #ccc;
+    }
+    .receipt-lines th.num { text-align: right; }
+    .receipt-lines td {
+      padding: 10px 6px;
+      border-bottom: 1px solid #eee;
+      vertical-align: top;
+    }
+    .receipt-lines td.num { text-align: right; white-space: nowrap; }
+    .receipt-lines td.bold,
+    .receipt-lines td.num.bold { font-weight: 700; color: #1a1a1a; }
+    .receipt-lines tbody tr:last-child td { border-bottom: 1px solid #ddd; }
     .total-row {
       display: flex;
       justify-content: space-between;
@@ -157,6 +225,20 @@ export function buildStandaloneReceiptHtml(rental: RentalWithCar, companyName: s
       line-height: 1.5;
       margin-top: 12px;
     }
+    .verify-qr {
+      display: block;
+      margin-top: 10px;
+      margin-left: auto;
+      width: 96px;
+      height: 96px;
+    }
+    .verify-caption {
+      display: block;
+      font-size: 0.65rem;
+      color: #666;
+      margin-top: 4px;
+      text-align: right;
+    }
   </style>
 </head>
 <body>
@@ -165,10 +247,13 @@ export function buildStandaloneReceiptHtml(rental: RentalWithCar, companyName: s
       <div>
         <h1 class="title">Kuitansi Sewa</h1>
         <p class="company">${escapeHtml(companyName || '')}</p>
+        ${adminNumHtml}
       </div>
       <div class="meta">
         <span class="badge">Selesai</span>
         <p class="ref">${escapeHtml(num)}</p>
+        ${qrBlockHtml}
+        ${qrBlockHtml ? '<span class="verify-caption">Pindai untuk verifikasi</span>' : ''}
       </div>
     </div>
 
@@ -203,7 +288,8 @@ export function buildStandaloneReceiptHtml(rental: RentalWithCar, companyName: s
 
     <hr class="hr" />
     <div class="section">RINCIAN</div>
-    <div>${detailHtml}</div>
+    ${linesTableHtml}
+    ${paymentHtml}
 
     <hr class="hr" />
     <div class="total-row">
@@ -236,8 +322,17 @@ function whenDocReady(win: Window, doc: Document, fn: () => void): void {
  * Prints via a hidden iframe (no extra tab). Iframe must have non-zero size: 0×0 clips the
  * body in Chrome/Edge print preview.
  */
-export function printStandaloneReceipt(rental: RentalWithCar, companyName: string): void {
-  const html = buildStandaloneReceiptHtml(rental, companyName)
+export async function printStandaloneReceipt(
+  rental: RentalWithCar,
+  companyName: string,
+  adminNumber = '',
+  verificationUrl?: string,
+): Promise<void> {
+  let qrDataUrl: string | undefined
+  if (verificationUrl?.trim()) {
+    qrDataUrl = await generateReceiptQrDataUrl(verificationUrl.trim())
+  }
+  const html = buildStandaloneReceiptHtml(rental, companyName, adminNumber, qrDataUrl)
 
   const iframe = document.createElement('iframe')
   iframe.setAttribute('aria-hidden', 'true')
@@ -272,12 +367,11 @@ export function printStandaloneReceipt(rental: RentalWithCar, companyName: strin
     iframe.remove()
   }
 
-  let fallbackTimer: ReturnType<typeof setTimeout>
+  const fallbackTimer = window.setTimeout(cleanup, 120_000)
   win.addEventListener('afterprint', () => {
     window.clearTimeout(fallbackTimer)
     cleanup()
   })
-  fallbackTimer = window.setTimeout(cleanup, 120_000)
 
   whenDocReady(win, doc, () => {
     win.focus()

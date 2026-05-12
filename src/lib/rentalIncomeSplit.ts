@@ -1,5 +1,6 @@
 /**
- * Income booked as `rental_income` at completion (matches `complete_rental` remainder).
+ * Income booked as `rental_income` at completion (matches `complete_rental` remainder after DP **and**
+ * excluding `driver_fee` when persisted).
  * DP is stored separately as `dp_rental_income` at check-in.
  */
 export function checkoutRentalIncomeAmount(grossIncome: number, downPayment: number): number {
