@@ -37,6 +37,7 @@ export function useV2RealtimeRefresh(tablesKey: string, onRefresh: () => void) {
     channel.subscribe((status, err) => {
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         console.warn('[useV2RealtimeRefresh]', tablesKey, status, err)
+        scheduleRefresh()
       }
     })
 

@@ -122,7 +122,13 @@ export function TvDisplayPage() {
     void load()
   }, [load])
 
-  useV2RealtimeRefresh('v2_rentals,v2_cars,v2_app_settings', load)
+  // Same table set/order as PublicFleetPage — multi-table realtime can fail on some kiosk browsers / networks.
+  useV2RealtimeRefresh('v2_cars,v2_rentals', load)
+
+  useEffect(() => {
+    const id = setInterval(() => void load(), 15_000)
+    return () => clearInterval(id)
+  }, [load])
 
   useEffect(() => {
     const onVis = () => {
