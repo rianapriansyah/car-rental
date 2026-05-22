@@ -12,7 +12,9 @@ import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIcon
 import { supabase } from '../../../lib/supabase'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 import { getRenterAccountChipProps, statusChipSx } from '../../../lib/statusChips'
+import { buildWhatsAppMeUrl } from '../../../lib/whatsappLink'
 import type { Tables } from '../../../types/database'
+import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { RenterInfoFormDialog } from './RenterInfoFormDialog'
 
 type RenterInfo = Tables<'v2_renter_info'>
@@ -35,6 +37,7 @@ export function RenterInfoPage() {
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<RenterInfo | null>(null)
+  const [waConfirmTarget, setWaConfirmTarget] = useState<RenterInfo | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
   const [keyword, setKeyword] = useState('')
@@ -71,6 +74,16 @@ export function RenterInfoPage() {
   const filtered = useMemo(() => {
     return rows.filter((r) => matchesSearchTokens(renterInfoSearchBlob(r), keyword))
   }, [rows, keyword])
+
+  function handleWhatsAppConfirm() {
+    if (!waConfirmTarget?.phone) {
+      setWaConfirmTarget(null)
+      return
+    }
+    const waUrl = buildWhatsAppMeUrl(waConfirmTarget.phone)
+    if (waUrl) window.open(waUrl, '_blank', 'noopener,noreferrer')
+    setWaConfirmTarget(null)
+  }
 
   const columns: GridColDef<RenterInfo>[] = [
     { field: 'name', headerName: 'Nama', flex: 1.2, minWidth: 140 },
@@ -137,6 +150,11 @@ export function RenterInfoPage() {
         onPaginationModelChange={setPaginationModel}
         pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
         disableRowSelectionOnClick
+        onCellClick={(params) => {
+          if (params.field === 'name') {
+            setWaConfirmTarget(params.row)
+          }
+        }}
         autoHeight
       />
 
@@ -145,6 +163,20 @@ export function RenterInfoPage() {
         initial={editing}
         onClose={() => setDialogOpen(false)}
         onSaved={() => void load()}
+      />
+
+      <ConfirmDialog
+        open={waConfirmTarget !== null}
+        title={waConfirmTarget?.phone ? 'Hubungi via WhatsApp?' : 'Nomor telepon tidak tersedia'}
+        description={
+          waConfirmTarget?.phone
+            ? `Anda akan diarahkan ke WhatsApp untuk menghubungi ${waConfirmTarget.name} (${waConfirmTarget.phone}). Lanjutkan?`
+            : `${waConfirmTarget?.name ?? 'Penyewa'} belum memiliki nomor telepon.`
+        }
+        confirmLabel={waConfirmTarget?.phone ? 'Buka WhatsApp' : 'Mengerti'}
+        confirmColor={waConfirmTarget?.phone ? 'primary' : 'error'}
+        onCancel={() => setWaConfirmTarget(null)}
+        onConfirm={handleWhatsAppConfirm}
       />
     </Box>
   )

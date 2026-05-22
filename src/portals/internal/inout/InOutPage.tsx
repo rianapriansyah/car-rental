@@ -1033,18 +1033,6 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
                 </Typography>
               ) : null}
               <Typography variant="caption" color="text.secondary">Hanya referensi — masukkan jumlah aktual di bawah.</Typography>
-              {Math.max(0, combinedRefTotal - downPayment) > 0 ? (
-                <Box sx={{ display: 'flex', mt: 1 }}>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    startIcon={<SendIcon />}
-                    onClick={handleKirimTagihan}
-                  >
-                    Kirim Tagihan
-                  </Button>
-                </Box>
-              ) : null}
             </>
           ) : (
             <Typography variant="caption" color="text.secondary">
@@ -1056,6 +1044,16 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
               ) : null}
             </Typography>
           )}
+          <Box sx={{ display: 'flex', mt: 1 }}>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<SendIcon />}
+              onClick={handleKirimTagihan}
+            >
+              Kirim Referensi Tarif
+            </Button>
+          </Box>
         </Paper>
       ) : null}
 

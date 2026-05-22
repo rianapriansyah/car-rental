@@ -1,5 +1,6 @@
 import {
   Button,
+  type ButtonProps,
   Dialog,
   DialogActions,
   DialogContent,
@@ -12,6 +13,7 @@ type Props = {
   title: string
   description: string
   confirmLabel?: string
+  confirmColor?: ButtonProps['color']
   onCancel: () => void
   onConfirm: () => void
 }
@@ -21,6 +23,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel = 'Confirm',
+  confirmColor = 'error',
   onCancel,
   onConfirm,
 }: Props) {
@@ -32,7 +35,7 @@ export function ConfirmDialog({
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onCancel}>Cancel</Button>
-        <Button color="error" variant="contained" onClick={onConfirm}>
+        <Button color={confirmColor} variant="contained" onClick={onConfirm}>
           {confirmLabel}
         </Button>
       </DialogActions>
