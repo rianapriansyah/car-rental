@@ -943,15 +943,39 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
 
       {selected ? (
         <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
-            <Chip size="small" label={`Mulai: ${selected.start_date}`} />
-            {selected.end_date ? <Chip size="small" label={`Selesai: ${selected.end_date}`} /> : null}
-            {downPayment > 0 ? (
-              <Chip size="small" color="info" label={`DP: ${formatIdr(downPayment)}`} />
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 0.75 }}
+          >
+            Catatan Check-in
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 0.5 }}>
+            Mulai:{' '}
+            <strong>
+              {selected.start_date}
+              {selected.start_time ? `, ${selected.start_time.slice(0, 5)}` : ''}
+            </strong>
+            {!selected.start_time ? (
+              <Typography component="span" variant="caption" color="text.secondary">
+                {' '}
+                (jam belum dicatat)
+              </Typography>
             ) : null}
-            {selected.include_driver ? (
-              <Chip size="small" color="secondary" variant="outlined" label="Paket sopir" />
-            ) : null}
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 0.5, whiteSpace: 'pre-wrap' }}>
+            Catatan: {checkInNote.trim() ? checkInNote : '—'}
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+            <Typography variant="body2" component="span">
+              Sopir:
+            </Typography>
+            <Chip
+              size="small"
+              color={selected.include_driver ? 'secondary' : 'default'}
+              variant={selected.include_driver ? 'outlined' : 'filled'}
+              label={selected.include_driver ? 'Sertakan sopir' : 'Tanpa sopir'}
+            />
           </Box>
         </Paper>
       ) : null}
@@ -962,22 +986,6 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         onClose={() => setAddDpModalOpen(false)}
         onSubmit={handleAddDpSubmit}
       />
-
-      {checkInNote ? (
-        <Box>
-          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            Catatan Check-in
-          </Typography>
-          <Paper
-            variant="outlined"
-            sx={{ p: 1.5, mt: 0.5, borderRadius: 2, bgcolor: 'action.hover' }}
-          >
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-              {checkInNote}
-            </Typography>
-          </Paper>
-        </Box>
-      ) : null}
 
       {selected ? (
         <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
@@ -1005,9 +1013,6 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
                   ? formatElapsed(refElapsedHours)
                   : '—'}
             </strong>
-            {selected.start_time ? (
-              <Typography component="span" variant="caption" color="text.secondary"> (sejak {selected.start_date} {selected.start_time})</Typography>
-            ) : null}
           </Typography>
           {combinedRefTotal != null ? (
             <>
