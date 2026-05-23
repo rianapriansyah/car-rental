@@ -963,20 +963,18 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
               </Typography>
             ) : null}
           </Typography>
+          <Typography variant="body2" sx={{ mb: 0.5 }}>
+            DP: <strong>{formatIdr(downPayment)}</strong>
+          </Typography>
           <Typography variant="body2" sx={{ mb: 0.5, whiteSpace: 'pre-wrap' }}>
             Catatan: {checkInNote.trim() ? checkInNote : '—'}
           </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
-            <Typography variant="body2" component="span">
-              Sopir:
-            </Typography>
-            <Chip
-              size="small"
-              color={selected.include_driver ? 'secondary' : 'default'}
-              variant={selected.include_driver ? 'outlined' : 'filled'}
-              label={selected.include_driver ? 'Sertakan sopir' : 'Tanpa sopir'}
-            />
-          </Box>
+          <Chip
+            size="small"
+            color={selected.include_driver ? 'secondary' : 'default'}
+            variant={selected.include_driver ? 'outlined' : 'filled'}
+            label={selected.include_driver ? 'Dengan Driver' : 'Lepas Kunci'}
+          />
         </Paper>
       ) : null}
 

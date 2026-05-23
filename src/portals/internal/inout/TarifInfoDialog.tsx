@@ -52,12 +52,12 @@ export function TarifInfoDialog({ open, onClose }: Props) {
             </li>
             <li>
               <Typography variant="body2">
-                <strong>Total</strong> = (jumlah hari × tarif harian) + (jam lembur × tarif overtime).
+                <strong>Total</strong> = (jumlah hari × tarif harian) + (jam overtime × tarif overtime).
               </Typography>
             </li>
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
-            Tarif harian diambil dari data kendaraan; tarif lembur per jam mengikuti pengaturan aplikasi.
+            Tarif harian diambil dari data kendaraan; tarif overtime per jam mengikuti pengaturan aplikasi.
             Nilai ini hanya <strong>referensi</strong> — jumlah aktual yang diterima tetap diisi pada kolom pembayaran.
           </Typography>
         </DialogContentText>
