@@ -19,7 +19,6 @@ const HAIRLINE: RGB = [228, 228, 232]
 const AMBER: RGB = [217, 119, 6]
 const AMBER_DEEP: RGB = [120, 53, 15]
 const AMBER_TINT: RGB = [255, 247, 230]
-const AMBER_LINE: RGB = [248, 222, 175]
 const BLUE: RGB = [29, 78, 216]
 const BLUE_TINT: RGB = [219, 234, 254]
 
