@@ -102,19 +102,19 @@ export function OrderFormDialog({
     setHardConflict(null)
     setSoftWarning(null)
     void (async () => {
-      const { data: availableCars, error: qError } = await supabase
+      const { data: fleetCars, error: qError } = await supabase
         .from('v2_cars')
         .select('id, name, plate, daily_rate')
-        .eq('status', 'available')
+        .neq('status', 'inactive')
         .is('deleted_at', null)
         .order('name')
       if (qError) {
         setError(qError.message)
         return
       }
-      const list: CarOption[] = availableCars ?? []
+      const list: CarOption[] = fleetCars ?? []
       // When pre-selecting a specific car (e.g. from the Car detail page), ensure it is
-      // present in the dropdown even if it isn't currently in 'available' status.
+      // present in the dropdown even if it is inactive or otherwise filtered out.
       if (defaultCarId && !list.some((c) => c.id === defaultCarId)) {
         const { data: extra } = await supabase
           .from('v2_cars')
