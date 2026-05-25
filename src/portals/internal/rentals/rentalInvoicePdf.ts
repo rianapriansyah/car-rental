@@ -192,6 +192,7 @@ export function generateRentalInvoicePdf(
   bankAccount = '',
   overtimeRate = 0,
   dailyDriverRate = 0,
+  adminNumber = '',
 ): void {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
@@ -234,11 +235,19 @@ export function generateRentalInvoicePdf(
   // ══════════════════════════════════════════════════════════════════════════
   let y = 18
 
-  smallCaps(doc, 'From', M, y, { color: MUTED_LIGHT })
+  smallCaps(doc, 'Dari', M, y, { color: MUTED_LIGHT })
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(15)
   doc.setTextColor(...INK)
   doc.text(companyName, M, y + 7)
+
+  const adminTrim = adminNumber.trim()
+  if (adminTrim) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9.5)
+    doc.setTextColor(...MUTED)
+    doc.text(adminTrim, M, y + 14)
+  }
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(28)
@@ -250,7 +259,7 @@ export function generateRentalInvoicePdf(
   doc.setTextColor(...MUTED)
   doc.text(invNum, pageW - M, y + 11, { align: 'right' })
 
-  y += 22
+  y += adminTrim ? 28 : 22
   hline(doc, y, M, pageW - M, HAIRLINE, 0.3)
   y += 9
 

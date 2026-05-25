@@ -35,7 +35,7 @@ import { formatIdr } from '../../../lib/formatIdr'
 import { insertDownPaymentIncomeTransaction } from '../../../lib/rentalDownPaymentTxn'
 import { calcCost, type CostBreakdown } from '../../../lib/rentalCost'
 import { calcDriverFeeVariantA } from '../../../lib/driverFee'
-import { fetchCompanyDisplayName } from '../../../lib/ledgerPdf'
+import { fetchAdminNumberDisplay, fetchCompanyDisplayName } from '../../../lib/ledgerPdf'
 import { buildWhatsAppMeUrlWithMessage } from '../../../lib/whatsappLink'
 import {
   generateRentalInvoicePdf,
@@ -589,6 +589,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   const [cancelPasswordOpen, setCancelPasswordOpen] = useState(false)
   const [addDpModalOpen, setAddDpModalOpen] = useState(false)
   const [companyName, setCompanyName] = useState('')
+  const [adminNumber, setAdminNumber] = useState('')
   const [bankAccount, setBankAccount] = useState('')
   const [tarifInfoOpen, setTarifInfoOpen] = useState(false)
   const [dailyDriverRate, setDailyDriverRate] = useState(0)
@@ -614,6 +615,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
         }
       })
     void fetchCompanyDisplayName(supabase).then(setCompanyName)
+    void fetchAdminNumberDisplay(supabase).then(setAdminNumber)
     void supabase
       .from('v2_app_settings')
       .select('value')
@@ -805,7 +807,7 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
   function handleKirimTagihan() {
     if (!selected) return
     const totals = calcInvoiceTotals(selected, overtimeRate, dailyDriverRate)
-    generateRentalInvoicePdf(selected, companyName, bankAccount, overtimeRate, dailyDriverRate)
+    generateRentalInvoicePdf(selected, companyName, bankAccount, overtimeRate, dailyDriverRate, adminNumber)
     if (selected.renter_phone) {
       const msg = buildInvoiceWhatsAppMessage(selected, totals, bankAccount)
       const waUrl = buildWhatsAppMeUrlWithMessage(selected.renter_phone, msg)

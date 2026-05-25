@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import SendIcon from '@mui/icons-material/Send'
 import {
   Alert,
   Box,
@@ -12,10 +13,14 @@ import {
 } from '@mui/material'
 import dayjs from 'dayjs'
 import { V2OrderStatusChip } from '../../../components/V2OrderStatusChip'
+import { fetchAdminNumberDisplay, fetchCompanyDisplayName } from '../../../lib/ledgerPdf'
 import { supabase } from '../../../lib/supabase'
 import { formatIdr } from '../../../lib/formatIdr'
+import { buildWhatsAppMeUrlWithMessage } from '../../../lib/whatsappLink'
 import { fetchV2StatusesByType, type V2StatusRow } from '../../../lib/v2StatusHelpers'
 import type { Tables } from '../../../types/database'
+import { generateOrderConfirmationPdf } from './orderConfirmationPdf'
+import { buildOrderConfirmationWhatsAppMessage } from './orderConfirmationWhatsapp'
 import { OrderCancelDialog } from './OrderCancelDialog'
 
 export type OrderDetail = Tables<'v2_orders'> & {
@@ -48,6 +53,14 @@ export function OrderDetailDialog({
   const [loading, setLoading] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [companyName, setCompanyName] = useState('')
+  const [adminNumber, setAdminNumber] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    void fetchCompanyDisplayName(supabase).then(setCompanyName)
+    void fetchAdminNumberDisplay(supabase).then(setAdminNumber)
+  }, [open])
 
   const load = useCallback(async () => {
     if (!orderId) return
@@ -84,6 +97,17 @@ export function OrderDetailDialog({
 
   const canCancel = row?.status === 'confirmed'
   const canActivate = row?.status === 'confirmed' && row.start_date <= todayYmd()
+  const canSendProof = row?.status === 'confirmed'
+
+  function handleKirimBuktiPesanan() {
+    if (!row) return
+    generateOrderConfirmationPdf(row, companyName, adminNumber)
+    if (row.renter_phone) {
+      const msg = buildOrderConfirmationWhatsAppMessage(row)
+      const waUrl = buildWhatsAppMeUrlWithMessage(row.renter_phone, msg)
+      if (waUrl) window.open(waUrl, '_blank', 'noopener,noreferrer')
+    }
+  }
 
   async function handleActivate() {
     if (!orderId) return
@@ -136,6 +160,17 @@ export function OrderDetailDialog({
                   Status
                 </Typography>
                 <V2OrderStatusChip statusId={row.status} statusMap={statusMap} />
+                {canSendProof ? (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<SendIcon />}
+                    onClick={handleKirimBuktiPesanan}
+                    sx={{ ml: 'auto' }}
+                  >
+                    Kirim Bukti Pesanan
+                  </Button>
+                ) : null}
               </Box>
               <Divider sx={{ my: 2 }} />
               <DetailField label="Kendaraan" value={carLabel} />
