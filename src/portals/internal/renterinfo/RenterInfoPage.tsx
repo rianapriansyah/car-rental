@@ -34,6 +34,7 @@ function renterInfoSearchBlob(row: RenterInfo): string {
 
 export function RenterInfoPage() {
   const [rows, setRows] = useState<RenterInfo[]>([])
+  const [rentalCounts, setRentalCounts] = useState<Map<string, number>>(new Map())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -47,16 +48,21 @@ export function RenterInfoPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const { data, error: qErr } = await supabase
-      .from('v2_renter_info')
-      .select('*')
-      .order('updated_at', { ascending: false })
+    const [{ data, error: qErr }, { data: rentalData }] = await Promise.all([
+      supabase.from('v2_renter_info').select('*').order('updated_at', { ascending: false }),
+      supabase.from('v2_rentals').select('renter_name').eq('status', 'completed'),
+    ])
     setLoading(false)
     if (qErr) {
       setError(qErr.message)
       return
     }
     setRows(data ?? [])
+    const counts = new Map<string, number>()
+    for (const r of rentalData ?? []) {
+      counts.set(r.renter_name, (counts.get(r.renter_name) ?? 0) + 1)
+    }
+    setRentalCounts(counts)
   }, [])
 
   useEffect(() => {
@@ -102,6 +108,22 @@ export function RenterInfoPage() {
       renderCell: (p) => statusChip(p.value as string),
     },
     { field: 'notes', headerName: 'Catatan', flex: 2, minWidth: 180, valueGetter: (v) => v ?? '—' },
+    {
+      field: '_totalSewa',
+      headerName: 'Total Sewa',
+      width: 110,
+      align: 'center',
+      headerAlign: 'center',
+      sortable: true,
+      valueGetter: (_v, row) => rentalCounts.get(row.name) ?? 0,
+      renderCell: (p) => (
+        <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography variant="body2" color={p.value > 0 ? 'text.primary' : 'text.disabled'}>
+            {p.value > 0 ? p.value : '—'}
+          </Typography>
+        </Box>
+      ),
+    },
     {
       field: '_actions',
       headerName: 'Aksi',
