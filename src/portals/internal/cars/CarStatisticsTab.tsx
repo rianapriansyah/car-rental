@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import dayjs, { type Dayjs } from 'dayjs'
 import {
+  Avatar,
   Box,
   Card,
   CardContent,
   CircularProgress,
   Paper,
+  Stack,
   Typography,
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
@@ -101,6 +103,8 @@ export function CarStatisticsTab({ carId }: Props) {
   const [services, setServices] = useState<Tables<'v2_car_services'>[]>([])
   const [settingsMap, setSettingsMap] = useState<Map<string, string>>(new Map())
   const [carMileage, setCarMileage] = useState<number | null>(null)
+  type AllRenterRow = { renter_name: string; duration_days: number | null; start_date: string; end_date: string | null }
+  const [allRenterRows, setAllRenterRows] = useState<AllRenterRow[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -119,6 +123,7 @@ export function CarStatisticsTab({ carId }: Props) {
       servicesRes,
       settingsRes,
       carRes,
+      allRentersRes,
     ] = await Promise.all([
       supabase
         .from('v2_transactions')
@@ -151,6 +156,12 @@ export function CarStatisticsTab({ carId }: Props) {
         .order('service_date', { ascending: true }),
       supabase.from('v2_app_settings').select('key, value'),
       supabase.from('v2_cars').select('mileage').eq('id', carId).maybeSingle(),
+      supabase
+        .from('v2_rentals')
+        .select('renter_name, duration_days, start_date, end_date')
+        .eq('car_id', carId)
+        .eq('status', 'completed')
+        .not('end_date', 'is', null),
     ])
 
     const err =
@@ -159,7 +170,8 @@ export function CarStatisticsTab({ carId }: Props) {
       rentalsRes.error?.message ??
       servicesRes.error?.message ??
       settingsRes.error?.message ??
-      carRes.error?.message
+      carRes.error?.message ??
+      allRentersRes.error?.message
     if (err) {
       setError(err)
       setLoading(false)
@@ -178,6 +190,7 @@ export function CarStatisticsTab({ carId }: Props) {
     setSettingsMap(sm)
     const cm = carRes.data?.mileage
     setCarMileage(typeof cm === 'number' && Number.isFinite(cm) ? cm : null)
+    setAllRenterRows((allRentersRes.data ?? []) as AllRenterRow[])
     setLoading(false)
   }, [carId, selectedMonth])
 
@@ -277,6 +290,31 @@ export function CarStatisticsTab({ carId }: Props) {
   }, [selectedMonth, txsByMonth])
 
   const feePctSetting = parseFeePct(settingsMap)
+
+  const topRenters = useMemo(() => {
+    const totalDays = new Map<string, number>()
+    for (const r of allRenterRows) {
+      let days: number
+      if (r.duration_days != null && r.duration_days > 0) {
+        days = r.duration_days
+      } else if (r.end_date) {
+        const s = new Date(`${r.start_date}T12:00:00`)
+        const e = new Date(`${r.end_date}T12:00:00`)
+        days = Math.max(1, Math.round((e.getTime() - s.getTime()) / 86_400_000))
+      } else {
+        continue
+      }
+      totalDays.set(r.renter_name, (totalDays.get(r.renter_name) ?? 0) + days)
+    }
+    const rentCount = new Map<string, number>()
+    for (const r of allRenterRows) {
+      rentCount.set(r.renter_name, (rentCount.get(r.renter_name) ?? 0) + 1)
+    }
+    return [...totalDays.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name, days]) => ({ name, days, count: rentCount.get(name) ?? 0 }))
+  }, [allRenterRows])
 
   const pieSlices = useMemo(() => {
     const { fee, partner } = donutData
@@ -387,6 +425,57 @@ export function CarStatisticsTab({ carId }: Props) {
           Belum ada data pendapatan, perawatan, atau pesanan selesai untuk bulan ini.
         </Typography>
       ) : null}
+
+      <Card variant="outlined">
+        <CardContent>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
+            Top 3 penyewa (sepanjang waktu)
+          </Typography>
+          {topRenters.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              Belum ada data sewa selesai.
+            </Typography>
+          ) : (
+            <Stack spacing={1.5}>
+              {topRenters.map(({ name, days, count }, i) => {
+                const medals = ['🥇', '🥈', '🥉']
+                return (
+                  <Box
+                    key={name}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.5,
+                      p: 1.25,
+                      borderRadius: 1.5,
+                      bgcolor: 'action.hover',
+                    }}
+                  >
+                    <Avatar
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        fontSize: '1rem',
+                        bgcolor: 'transparent',
+                      }}
+                    >
+                      {medals[i]}
+                    </Avatar>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="body2" fontWeight={600} noWrap>
+                        {name}
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                      {days} hari ({count}× sewa)
+                    </Typography>
+                  </Box>
+                )
+              })}
+            </Stack>
+          )}
+        </CardContent>
+      </Card>
 
       <Card variant="outlined">
         <CardContent>

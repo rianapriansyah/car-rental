@@ -16,6 +16,7 @@ import { buildWhatsAppMeUrl } from '../../../lib/whatsappLink'
 import type { Tables } from '../../../types/database'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { RenterInfoFormDialog } from './RenterInfoFormDialog'
+import { RenterRentalHistoryDialog } from './RenterRentalHistoryDialog'
 
 type RenterInfo = Tables<'v2_renter_info'>
 
@@ -38,6 +39,7 @@ export function RenterInfoPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<RenterInfo | null>(null)
   const [waConfirmTarget, setWaConfirmTarget] = useState<RenterInfo | null>(null)
+  const [historyTarget, setHistoryTarget] = useState<RenterInfo | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
 
   const [keyword, setKeyword] = useState('')
@@ -86,7 +88,12 @@ export function RenterInfoPage() {
   }
 
   const columns: GridColDef<RenterInfo>[] = [
-    { field: 'name', headerName: 'Nama', flex: 1.2, minWidth: 140 },
+    {
+      field: 'name',
+      headerName: 'Nama',
+      flex: 1.2,
+      minWidth: 140,
+    },
     { field: 'phone', headerName: 'Telepon', flex: 1, minWidth: 130, valueGetter: (v) => v ?? '—' },
     {
       field: 'status',
@@ -151,9 +158,12 @@ export function RenterInfoPage() {
         pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
         disableRowSelectionOnClick
         onCellClick={(params) => {
-          if (params.field === 'name') {
-            setWaConfirmTarget(params.row)
-          }
+          if (params.field === 'phone') setWaConfirmTarget(params.row)
+          if (params.field === 'name') setHistoryTarget(params.row)
+        }}
+        sx={{
+          '& .MuiDataGrid-cell[data-field="phone"]': { cursor: 'pointer' },
+          '& .MuiDataGrid-cell[data-field="name"]': { cursor: 'pointer' },
         }}
         autoHeight
       />
@@ -163,6 +173,12 @@ export function RenterInfoPage() {
         initial={editing}
         onClose={() => setDialogOpen(false)}
         onSaved={() => void load()}
+      />
+
+      <RenterRentalHistoryDialog
+        open={historyTarget !== null}
+        renterName={historyTarget?.name ?? ''}
+        onClose={() => setHistoryTarget(null)}
       />
 
       <ConfirmDialog
