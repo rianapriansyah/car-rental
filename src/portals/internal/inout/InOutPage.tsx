@@ -7,6 +7,7 @@ import {
   FormControl,
   FormControlLabel,
   IconButton,
+  InputAdornment,
   InputLabel,
   MenuItem,
   Paper,
@@ -36,6 +37,7 @@ import { insertDownPaymentIncomeTransaction } from '../../../lib/rentalDownPayme
 import { calcCost, type CostBreakdown } from '../../../lib/rentalCost'
 import { calcDriverFeeVariantA } from '../../../lib/driverFee'
 import { fetchAdminNumberDisplay, fetchCompanyDisplayName } from '../../../lib/ledgerPdf'
+import { formatElapsedDuration } from '../../../lib/formatDuration'
 import { buildWhatsAppMeUrlWithMessage } from '../../../lib/whatsappLink'
 import {
   generateRentalInvoicePdf,
@@ -57,16 +59,12 @@ function calcElapsedHours(startDate: string, startTime: string | null, until?: D
   return end.diff(start, 'minute') / 60
 }
 
-function formatElapsed(hours: number): string {
-  const h = Math.floor(hours)
-  const m = Math.round((hours - h) * 60)
-  const days = Math.floor(h / 24)
-  const remH = h % 24
-  const parts: string[] = []
-  if (days > 0) parts.push(`${days}d`)
-  if (remH > 0 || days === 0) parts.push(`${remH}h`)
-  if (m > 0) parts.push(`${m}m`)
-  return parts.join(' ')
+const formatElapsed = formatElapsedDuration
+
+/** Formats a raw digit string as Indonesian thousands-separated number, e.g. "300000" → "300.000" */
+function fmtNumInput(raw: string): string {
+  if (!raw) return ''
+  return raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 }
 
 type CarOption = {
@@ -507,11 +505,12 @@ function CheckInPanel({ onSaved }: { onSaved: () => void }) {
         />
         <TextField
           size="small"
-          label="DP (IDR)"
-          value={downPayment}
+          label="DP"
+          value={fmtNumInput(downPayment)}
           onChange={(e) => setDownPayment(e.target.value.replace(/\D/g, ''))}
           inputMode="numeric"
           fullWidth
+          slotProps={{ input: { startAdornment: <InputAdornment position="start">Rp</InputAdornment> } }}
           helperText="Dicatat sebagai DP sewa di transaksi; saat selesai masukkan sisa pembayaran (bukan total)."
         />
       </Box>
@@ -1064,12 +1063,13 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
 
       <TextField
         size="small"
-        label="Sisa pembayaran di checkout (IDR)"
-        value={gross}
+        label="Sisa pembayaran di checkout"
+        value={fmtNumInput(gross)}
         onChange={(e) => setGross(e.target.value.replace(/\D/g, ''))}
         inputMode="numeric"
         fullWidth
         disabled={!selectedId}
+        slotProps={{ input: { startAdornment: <InputAdornment position="start">Rp</InputAdornment> } }}
         helperText={
           selected?.include_driver
             ? downPayment > 0

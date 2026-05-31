@@ -24,6 +24,7 @@ import { CompleteRentalDialog } from './CompleteRentalDialog'
 import { RentalReceiptDialog } from './RentalReceiptDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 import { getRentalStatusChipProps, RENTAL_STATUS_LABELS, statusChipSx } from '../../../lib/statusChips'
+import { formatDuration } from '../../../lib/formatDuration'
 
 type RentalsPageProps = {
   /**
@@ -44,7 +45,6 @@ function rentalMatchesCarAndMonth(row: RentalWithCar, carId: string, monthYyyyMm
   return true
 }
 
-const MINUTES_PER_DAY = 24 * 60
 
 function calcDurationLabel(row: RentalWithCar): string {
   if (row.status === 'cancelled') return '—'
@@ -54,13 +54,8 @@ function calcDurationLabel(row: RentalWithCar): string {
     ? dayjs(`${row.end_date}T${row.end_time?.trim() || '23:59'}`)
     : dayjs()
   const totalMinutes = Math.max(0, end.diff(start, 'minute'))
-  if (totalMinutes === 0) return '—'
-  if (totalMinutes < MINUTES_PER_DAY) {
-    const jam = Math.max(1, Math.ceil(totalMinutes / 60))
-    return row.status === 'active' ? `${jam} jam (aktif)` : `${jam} jam`
-  }
-  const days = Math.floor(totalMinutes / MINUTES_PER_DAY)
-  return row.status === 'active' ? `${days} hari (aktif)` : `${days} hari`
+  const label = formatDuration(totalMinutes)
+  return row.status === 'active' ? `${label} (aktif)` : label
 }
 
 function rentalSearchBlob(row: RentalWithCar): string {

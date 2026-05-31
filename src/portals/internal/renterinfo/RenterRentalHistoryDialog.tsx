@@ -14,6 +14,7 @@ import {
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
 import type { Tables } from '../../../types/database'
+import { formatDuration } from '../../../lib/formatDuration'
 
 type RentalRow = Tables<'v2_rentals'> & {
   v2_cars: { name: string; plate: string } | null
@@ -35,12 +36,13 @@ function formatDateTime(date: string | null, time: string | null | undefined): s
 
 function durasiLabel(row: RentalRow): string {
   if (row.status === 'cancelled') return '—'
-  if (row.duration_days != null && row.duration_days > 0) return `${row.duration_days} hari`
   if (!row.end_date) return 'Aktif'
-  const start = new Date(`${row.start_date}T12:00:00`)
-  const end = new Date(`${row.end_date}T12:00:00`)
-  const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000))
-  return `${days} hari`
+  const startT = row.start_time?.trim() || '00:00'
+  const endT = row.end_time?.trim() || '23:59'
+  const start = new Date(`${row.start_date}T${startT}`)
+  const end = new Date(`${row.end_date}T${endT}`)
+  const totalMinutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60_000))
+  return formatDuration(totalMinutes)
 }
 
 export function RenterRentalHistoryDialog({ open, renterName, onClose }: Props) {

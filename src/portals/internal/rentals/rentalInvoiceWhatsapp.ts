@@ -1,4 +1,5 @@
 import { formatIdr } from '../../../lib/formatIdr'
+import { formatElapsedDuration } from '../../../lib/formatDuration'
 import type { InvoiceRentalInput, InvoiceTotals } from './rentalInvoicePdf'
 
 // ─── Helpers (private) ────────────────────────────────────────────────────────
@@ -16,19 +17,7 @@ function fmtDateTime(dateStr: string | null, timeStr: string | null | undefined)
   return t ? `${base}, ${t.slice(0, 5)}` : base
 }
 
-function formatElapsedLabel(hours: number): string {
-  const totalMin = Math.round(hours * 60)
-  const days = Math.floor(totalMin / 1440)
-  const remH = Math.floor((totalMin % 1440) / 60)
-  const remM = totalMin % 60
-  const sub: string[] = []
-  if (remH > 0) sub.push(`${remH}j`)
-  if (remM > 0) sub.push(`${remM}m`)
-  if (days > 0) {
-    return sub.length > 0 ? `${days} hari (${sub.join(' ')})` : `${days} hari`
-  }
-  return sub.length > 0 ? sub.join(' ') : `${remM}m`
-}
+const formatElapsedLabel = formatElapsedDuration
 
 // ─── WhatsApp message builder ─────────────────────────────────────────────────
 

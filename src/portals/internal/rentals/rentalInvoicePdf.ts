@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { formatIdr } from '../../../lib/formatIdr'
+import { formatElapsedDuration } from '../../../lib/formatDuration'
 import { calcDriverFeeVariantA } from '../../../lib/driverFee'
 import { elapsedHoursRentalReference } from '../../../lib/rentalElapsedHours'
 import { calcCost, type CostBreakdown } from '../../../lib/rentalCost'
@@ -121,20 +122,8 @@ function fmtDate(dateStr: string | null | undefined): string {
   return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-/** "1 hari (20j 34m)" from elapsed hours */
-function formatElapsedLabel(hours: number): string {
-  const totalMin = Math.round(hours * 60)
-  const days = Math.floor(totalMin / 1440)
-  const remH = Math.floor((totalMin % 1440) / 60)
-  const remM = totalMin % 60
-  const sub: string[] = []
-  if (remH > 0) sub.push(`${remH}j`)
-  if (remM > 0) sub.push(`${remM}m`)
-  if (days > 0) {
-    return sub.length > 0 ? `${days} hari (${sub.join(' ')})` : `${days} hari`
-  }
-  return sub.length > 0 ? sub.join(' ') : `${remM}m`
-}
+/** "5 hari, 4 jam, 30 menit" from elapsed hours */
+const formatElapsedLabel = formatElapsedDuration
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 //
