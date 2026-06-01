@@ -9,7 +9,6 @@ import { calcCost, type CostBreakdown } from '../../lib/rentalCost'
 import { calcDriverFeeVariantA } from '../../lib/driverFee'
 import { elapsedHoursRentalReference } from '../../lib/rentalElapsedHours'
 import { fetchCompanyDisplayName } from '../../lib/ledgerPdf'
-import { formatElapsedDuration } from '../../lib/formatDuration'
 import type { Tables } from '../../types/database'
 
 type ActiveRental = Tables<'v2_rentals'> & {
@@ -24,7 +23,18 @@ function formatDateTimeId(date: string | null, time: string | null): string {
   return `${ID_DAYS[d.day()]}, ${d.format('DD-MM-YYYY')} ${time ? time.slice(0, 5) : '--:--'}`
 }
 
-const formatElapsed = formatElapsedDuration
+/** Elapsed hours → "2h 1j 30m" / "13j 7m" (hari, jam, menit) */
+function formatElapsed(hours: number): string {
+  const totalMinutes = Math.round(hours * 60)
+  const days = Math.floor(totalMinutes / (60 * 24))
+  const remH = Math.floor((totalMinutes % (60 * 24)) / 60)
+  const remM = totalMinutes % 60
+  const parts: string[] = []
+  if (days > 0) parts.push(`${days}h`)
+  if (remH > 0 || days === 0) parts.push(`${remH}j`)
+  if (remM > 0 || (days === 0 && remH === 0)) parts.push(`${remM}m`)
+  return parts.join(' ')
+}
 
 /** IDR amount without the Rp prefix (e.g. 25.000) for inline breakdowns */
 function formatIdrPlain(amount: number): string {

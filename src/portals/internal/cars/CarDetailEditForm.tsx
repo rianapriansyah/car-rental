@@ -7,6 +7,7 @@ import {
   FormControl,
   FormControlLabel,
   IconButton,
+  InputAdornment,
   InputLabel,
   MenuItem,
   Select,
@@ -295,13 +296,13 @@ export const CarDetailEditForm = forwardRef<CarDetailEditFormHandle, Props>(func
       </Box>
       <TextField
         size="small"
-        label="Tarif harian (IDR)"
-        value={dailyRate}
-        onChange={(e) => setDailyRate(e.target.value)}
-        type="number"
+        label="Tarif harian"
+        value={dailyRate ? dailyRate.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''}
+        onChange={(e) => setDailyRate(e.target.value.replace(/\D/g, ''))}
+        inputMode="numeric"
         fullWidth
         sx={{ mb: 2 }}
-        slotProps={{ htmlInput: { min: 0 } }}
+        slotProps={{ input: { startAdornment: <InputAdornment position="start">Rp</InputAdornment> } }}
       />
       <TextField
         size="small"

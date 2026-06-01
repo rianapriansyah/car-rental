@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  InputAdornment,
   InputLabel,
   MenuItem,
   Select,
@@ -129,12 +130,13 @@ export function ManualTransactionDialog({ open, carId, onClose, onSaved }: Props
         </Box>
         <TextField
           size="small"
-          label="Jumlah (IDR)"
-          value={amount}
+          label="Jumlah"
+          value={amount ? amount.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''}
           onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))}
           inputMode="numeric"
           fullWidth
           sx={{ mb: 2 }}
+          slotProps={{ input: { startAdornment: <InputAdornment position="start">Rp</InputAdornment> } }}
         />
         <DateTimePicker
           label="Dicatat pada"

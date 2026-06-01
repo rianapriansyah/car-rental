@@ -9,6 +9,7 @@ import {
   DialogTitle,
   FormControl,
   FormControlLabel,
+  InputAdornment,
   InputLabel,
   MenuItem,
   Paper,
@@ -391,12 +392,13 @@ export function OrderFormDialog({
           >
             <TextField
               size="small"
-              label="Deposit (IDR)"
-              value={depositAmount}
+              label="Deposit"
+              value={depositAmount ? depositAmount.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''}
               onChange={(e) => setDepositAmount(e.target.value.replace(/\D/g, ''))}
               inputMode="numeric"
               fullWidth
               disabled={saving}
+              slotProps={{ input: { startAdornment: <InputAdornment position="start">Rp</InputAdornment> } }}
             />
           </Box>
           <FormControlLabel
