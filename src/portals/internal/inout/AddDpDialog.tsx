@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  InputAdornment,
   TextField,
 } from '@mui/material'
 import { formatIdr } from '../../../lib/formatIdr'
@@ -74,14 +75,15 @@ export function AddDpDialog({ open, currentDownPayment, onClose, onSubmit }: Pro
           autoFocus
           fullWidth
           size="small"
-          label="Jumlah DP tambahan (IDR)"
-          value={additionalDp}
+          label="Jumlah DP tambahan"
+          value={additionalDp ? additionalDp.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''}
           onChange={(e) => {
             setAdditionalDp(e.target.value.replace(/\D/g, ''))
             if (error) setError(null)
           }}
           inputMode="numeric"
           disabled={busy}
+          slotProps={{ input: { startAdornment: <InputAdornment position="start">Rp</InputAdornment> } }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault()
