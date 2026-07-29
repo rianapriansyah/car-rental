@@ -102,7 +102,21 @@ export function useCarServices(carId: string | null) {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
 
-      const rows = ((data ?? []) as CarServiceRow[])
+      // Keep only the latest log per service_type — an older log's next_due_date
+      // is superseded once a newer service of the same type has been recorded.
+      const latestByType = new Map<string, CarServiceRow>()
+      for (const row of (data ?? []) as CarServiceRow[]) {
+        const current = latestByType.get(row.service_type)
+        if (
+          !current ||
+          row.service_date > current.service_date ||
+          (row.service_date === current.service_date && (row.created_at ?? '') > (current.created_at ?? ''))
+        ) {
+          latestByType.set(row.service_type, row)
+        }
+      }
+
+      const rows = Array.from(latestByType.values())
         .flatMap((row) => {
           if (!row.next_due_date) return []
           const dueDate = ymdToDate(row.next_due_date)

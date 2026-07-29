@@ -307,11 +307,12 @@ export const CarDetailEditForm = forwardRef<CarDetailEditFormHandle, Props>(func
       <TextField
         size="small"
         label="Kilometer (odometer)"
-        value={mileage}
+        value={mileage ? mileage.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''}
         onChange={(e) => setMileage(e.target.value.replace(/\D/g, ''))}
         inputMode="numeric"
         fullWidth
         sx={{ mb: 2 }}
+        slotProps={{ input: { startAdornment: <InputAdornment position="start">KM</InputAdornment> } }}
         helperText="Opsional. Terakhir diketahui untuk referensi sewa dan service."
       />
       <Box sx={{ mb: 2 }}>

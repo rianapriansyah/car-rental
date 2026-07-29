@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import dayjs, { type Dayjs } from 'dayjs'
+import 'dayjs/locale/id'
 import {
   Alert,
   Box,
@@ -9,6 +10,7 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  InputAdornment,
   InputLabel,
   MenuItem,
   Select,
@@ -17,7 +19,9 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material'
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { SERVICE_TYPE_LABELS, SERVICE_TYPES_BY_CATEGORY } from '../../../constants/serviceTypes'
 import type { ServiceCategory, ServiceType } from '../../../types/service'
 import type { TablesInsert } from '../../../types/database'
@@ -203,41 +207,47 @@ export function LogServiceDialog({ open, carId, addService, intervalDefaultsByTy
             />
           ) : null}
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-            <DatePicker
-              label="Service Date"
-              value={serviceDate}
-              onChange={setServiceDate}
-              slotProps={{ textField: { size: 'small', fullWidth: true } }}
-            />
-            <DatePicker
-              label="Next Due Date (optional)"
-              value={nextDueDate}
-              onChange={(value) => {
-                setNextDueDate(value)
-                setNextDueTouched(true)
-              }}
-              slotProps={{ textField: { size: 'small', fullWidth: true } }}
-            />
-          </Box>
+          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="id">
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+              <DatePicker
+                label="Service Date"
+                value={serviceDate}
+                onChange={setServiceDate}
+                format="dddd, DD-MM-YYYY"
+                slotProps={{ textField: { size: 'small', fullWidth: true } }}
+              />
+              <DatePicker
+                label="Next Due Date (optional)"
+                value={nextDueDate}
+                onChange={(value) => {
+                  setNextDueDate(value)
+                  setNextDueTouched(true)
+                }}
+                format="dddd, DD-MM-YYYY"
+                slotProps={{ textField: { size: 'small', fullWidth: true } }}
+              />
+            </Box>
+          </LocalizationProvider>
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
             <TextField
               size="small"
               label="Service mileage (km)"
-              value={serviceMileage}
+              value={serviceMileage ? serviceMileage.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''}
               onChange={(e) => setServiceMileage(e.target.value.replace(/\D/g, ''))}
               inputMode="numeric"
               fullWidth
+              slotProps={{ input: { startAdornment: <InputAdornment position="start">KM</InputAdornment> } }}
               helperText="Odometer saat service (opsional)."
             />
             <TextField
               size="small"
               label="Next due mileage (km, optional)"
-              value={nextDueMileage}
+              value={nextDueMileage ? nextDueMileage.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''}
               onChange={(e) => setNextDueMileage(e.target.value.replace(/\D/g, ''))}
               inputMode="numeric"
               fullWidth
+              slotProps={{ input: { startAdornment: <InputAdornment position="start">KM</InputAdornment> } }}
               helperText="Target KM untuk service berikutnya."
             />
           </Box>
@@ -245,11 +255,11 @@ export function LogServiceDialog({ open, carId, addService, intervalDefaultsByTy
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
             <TextField
               size="small"
-              type="number"
               label="Cost (optional)"
-              value={cost}
-              onChange={(e) => setCost(e.target.value)}
-              slotProps={{ htmlInput: { min: 0, step: '0.01' } }}
+              value={cost ? cost.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''}
+              onChange={(e) => setCost(e.target.value.replace(/\D/g, ''))}
+              inputMode="numeric"
+              slotProps={{ input: { startAdornment: <InputAdornment position="start">Rp</InputAdornment> } }}
               fullWidth
             />
             <TextField

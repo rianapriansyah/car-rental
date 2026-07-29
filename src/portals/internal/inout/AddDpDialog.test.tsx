@@ -39,7 +39,7 @@ describe('AddDpDialog', () => {
     const { dialog } = renderDialog()
     const input = getInput(dialog)
     fireEvent.change(input, { target: { value: 'Rp 50.000' } })
-    expect(input.value).toBe('50000')
+    expect(input.value).toBe('50.000')
   })
 
   it('rejects amounts ≤ 0 with an inline alert and does not call onSubmit', async () => {

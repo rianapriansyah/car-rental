@@ -1,4 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
+import dayjs from 'dayjs'
+import 'dayjs/locale/id'
 import {
   Alert,
   Box,
@@ -65,7 +67,8 @@ export function CarServiceTab({ carId }: Props) {
       {
         field: 'service_date',
         headerName: 'Date',
-        width: 120,
+        width: 180,
+        valueGetter: (v) => (v ? dayjs(v as string).locale('id').format('dddd, DD-MM-YYYY') : '—'),
       },
       {
         field: 'service_type',
@@ -151,7 +154,8 @@ export function CarServiceTab({ carId }: Props) {
                 severity={item.reminder_level === 'overdue' ? 'error' : 'warning'}
                 variant="outlined"
               >
-                {SERVICE_TYPE_LABELS[item.service_type]} — due {item.next_due_date}
+                {SERVICE_TYPE_LABELS[item.service_type]} — due{' '}
+                {dayjs(item.next_due_date).locale('id').format('dddd, DD-MM-YYYY')}
               </Alert>
             ))}
           </Box>

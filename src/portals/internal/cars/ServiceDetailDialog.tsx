@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import dayjs from 'dayjs'
+import 'dayjs/locale/id'
 import {
   Alert,
   Box,
@@ -18,6 +20,11 @@ import type { CarServiceRow, ServiceCategory } from '../../../types/service'
 
 function categoryLabel(category: ServiceCategory): string {
   return category === 'component_replacement' ? 'Component Replacement' : 'Routine Maintenance'
+}
+
+function formatDateId(ymd: string | null): string {
+  if (!ymd) return '—'
+  return dayjs(ymd).locale('id').format('dddd, DD-MM-YYYY')
 }
 
 type Props = {
@@ -85,14 +92,14 @@ export function ServiceDetailDialog({ open, service, onClose, onDeleted, onDelet
                 </Alert>
               ) : null}
               <Divider sx={{ mb: 2 }} />
-              <DetailField label="Tanggal" value={svc.service_date} />
+              <DetailField label="Tanggal" value={formatDateId(svc.service_date)} />
               <DetailField label="Kategori" value={categoryLabel(svc.category as ServiceCategory)} />
               <DetailField
                 label="Tipe service"
                 value={SERVICE_TYPE_LABELS[svc.service_type as keyof typeof SERVICE_TYPE_LABELS] ?? svc.service_type}
               />
               {svc.description ? <DetailField label="Deskripsi" value={svc.description} /> : null}
-              <DetailField label="Next due date" value={svc.next_due_date ?? '—'} />
+              <DetailField label="Next due date" value={formatDateId(svc.next_due_date)} />
               <DetailField
                 label="Service KM"
                 value={svc.service_mileage != null ? svc.service_mileage.toLocaleString('id-ID') + ' km' : '—'}
@@ -133,7 +140,7 @@ export function ServiceDetailDialog({ open, service, onClose, onDeleted, onDelet
       <ConfirmDialog
         open={confirmOpen}
         title="Hapus log service?"
-        description={`Hapus log service "${svc ? (SERVICE_TYPE_LABELS[svc.service_type as keyof typeof SERVICE_TYPE_LABELS] ?? svc.service_type) : ''}" pada ${svc?.service_date ?? ''}? Transaksi pengeluaran terkait juga akan dihapus.`}
+        description={`Hapus log service "${svc ? (SERVICE_TYPE_LABELS[svc.service_type as keyof typeof SERVICE_TYPE_LABELS] ?? svc.service_type) : ''}" pada ${svc ? formatDateId(svc.service_date) : ''}? Transaksi pengeluaran terkait juga akan dihapus.`}
         confirmLabel={deleting ? 'Menghapus…' : 'Hapus'}
         onCancel={() => setConfirmOpen(false)}
         onConfirm={() => void handleDeleteConfirmed()}

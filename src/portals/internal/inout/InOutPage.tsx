@@ -1101,11 +1101,12 @@ function CheckOutPanel({ refreshTick, onCompleted }: { refreshTick: number; onCo
       <TextField
         size="small"
         label="Kilometer (odometer) saat ini"
-        value={checkoutMileage}
+        value={checkoutMileage ? checkoutMileage.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''}
         onChange={(e) => setCheckoutMileage(e.target.value.replace(/\D/g, ''))}
         inputMode="numeric"
         fullWidth
         disabled={!selectedId}
+        slotProps={{ input: { startAdornment: <InputAdornment position="start">KM</InputAdornment> } }}
         helperText={
           selected?.v2_cars?.mileage != null
             ? `Terakhir tercatat: ${selected.v2_cars.mileage.toLocaleString('id-ID')} km. Opsional — isi untuk memperbarui.`

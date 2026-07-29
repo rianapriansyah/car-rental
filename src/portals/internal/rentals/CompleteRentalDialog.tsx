@@ -7,6 +7,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  InputAdornment,
   Paper,
   TextField,
   Typography,
@@ -159,11 +160,12 @@ export function CompleteRentalDialog({
         <TextField
           size="small"
           label="Kilometer (odometer) saat ini"
-          value={mileage}
+          value={mileage ? mileage.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''}
           onChange={(e) => setMileage(e.target.value.replace(/\D/g, ''))}
           inputMode="numeric"
           fullWidth
           sx={{ mb: 2 }}
+          slotProps={{ input: { startAdornment: <InputAdornment position="start">KM</InputAdornment> } }}
           helperText="Opsional. Mencatat KM kendaraan saat check-out."
         />
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mb: 2 }}>
