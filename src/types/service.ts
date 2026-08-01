@@ -40,6 +40,8 @@ export interface ServiceIntervalDefault {
   service_type: ServiceType
   default_interval_months: number
   warning_days: number
+  default_interval_km?: number | null
+  warning_km?: number | null
 }
 
 export type CarServiceRow = Tables<'v2_car_services'>

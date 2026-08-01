@@ -11,7 +11,7 @@ import {
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
-import { useCarServices } from '../../../hooks/useCarServices'
+import { useCarServices, type ServiceReminder } from '../../../hooks/useCarServices'
 import { SERVICE_TYPE_LABELS } from '../../../constants/serviceTypes'
 import type { CarServiceRow, ServiceType } from '../../../types/service'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
@@ -22,9 +22,26 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
 type Props = {
   carId: string
+  carMileage: number | null
 }
 
-export function CarServiceTab({ carId }: Props) {
+function reminderInfoText(item: ServiceReminder): string {
+  const parts: string[] = []
+  if (item.date_level && item.next_due_date) {
+    parts.push(`due ${dayjs(item.next_due_date).locale('id').format('dddd, DD-MM-YYYY')}`)
+  }
+  if (item.km_level && item.next_due_mileage != null) {
+    const remaining = item.next_due_mileage - (item.car_mileage ?? 0)
+    parts.push(
+      remaining <= 0
+        ? `sudah lewat ${Math.abs(remaining).toLocaleString('id-ID')} km dari target ${item.next_due_mileage.toLocaleString('id-ID')} km`
+        : `${remaining.toLocaleString('id-ID')} km lagi menuju ${item.next_due_mileage.toLocaleString('id-ID')} km`,
+    )
+  }
+  return parts.join(' · ')
+}
+
+export function CarServiceTab({ carId, carMileage }: Props) {
   const {
     services,
     reminders,
@@ -34,7 +51,7 @@ export function CarServiceTab({ carId }: Props) {
     deleteService,
     addService,
     refresh,
-  } = useCarServices(carId)
+  } = useCarServices(carId, carMileage)
 
   const [logOpen, setLogOpen] = useState(false)
   const [detailRow, setDetailRow] = useState<CarServiceRow | null>(null)
@@ -154,8 +171,7 @@ export function CarServiceTab({ carId }: Props) {
                 severity={item.reminder_level === 'overdue' ? 'error' : 'warning'}
                 variant="outlined"
               >
-                {SERVICE_TYPE_LABELS[item.service_type]} — due{' '}
-                {dayjs(item.next_due_date).locale('id').format('dddd, DD-MM-YYYY')}
+                {SERVICE_TYPE_LABELS[item.service_type]} — {reminderInfoText(item)}
               </Alert>
             ))}
           </Box>

@@ -256,18 +256,24 @@ export type Database = {
           service_type: Database['public']['Enums']['v2_service_type']
           default_interval_months: number
           warning_days: number
+          default_interval_km: number | null
+          warning_km: number | null
         }
         Insert: {
           id?: string
           service_type: Database['public']['Enums']['v2_service_type']
           default_interval_months: number
           warning_days?: number
+          default_interval_km?: number | null
+          warning_km?: number | null
         }
         Update: {
           id?: string
           service_type?: Database['public']['Enums']['v2_service_type']
           default_interval_months?: number
           warning_days?: number
+          default_interval_km?: number | null
+          warning_km?: number | null
         }
         Relationships: []
       }

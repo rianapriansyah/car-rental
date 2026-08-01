@@ -127,7 +127,7 @@ export function CarDetailPage() {
           {tab === 1 ? <RentalsPage carId={carId} /> : null}
           {tab === 2 ? <OrdersListPage carId={carId} /> : null}
           {tab === 3 ? <TransactionsPage carId={carId} /> : null}
-          {tab === 4 ? <CarServiceTab carId={carId} /> : null}
+          {tab === 4 ? <CarServiceTab carId={carId} carMileage={car.mileage} /> : null}
           {tab === 5 ? <CarStatisticsTab carId={carId} /> : null}
         </Box>
       </Paper>

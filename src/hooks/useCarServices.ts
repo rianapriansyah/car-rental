@@ -6,10 +6,18 @@ import type { TablesInsert } from '../types/database'
 import type { CarServiceRow, ServiceIntervalDefaultRow, ServiceType } from '../types/service'
 
 type ReminderLevel = 'overdue' | 'due_soon'
+type ReminderTrigger = 'date' | 'km' | 'both'
+
+const DEFAULT_WARNING_KM = 500
 
 export type ServiceReminder = CarServiceRow & {
   warning_days: number
+  warning_km: number
   reminder_level: ReminderLevel
+  trigger: ReminderTrigger
+  date_level: ReminderLevel | null
+  km_level: ReminderLevel | null
+  car_mileage: number | null
 }
 
 function ymdToDate(ymd: string): Date {
@@ -40,7 +48,7 @@ function buildServiceExpenseManualNote(row: CarServiceRow): string {
   return lines.join('\n')
 }
 
-export function useCarServices(carId: string | null) {
+export function useCarServices(carId: string | null, carMileage: number | null = null) {
   const [services, setServices] = useState<CarServiceRow[]>([])
   const [reminders, setReminders] = useState<ServiceReminder[]>([])
   const [intervalDefaults, setIntervalDefaults] = useState<ServiceIntervalDefaultRow[]>([])
@@ -55,7 +63,7 @@ export function useCarServices(carId: string | null) {
   const fetchIntervalDefaults = useCallback(async () => {
     const { data, error: qError } = await supabase
       .from('v2_service_interval_defaults')
-      .select('service_type, default_interval_months, warning_days')
+      .select('service_type, default_interval_months, warning_days, default_interval_km, warning_km')
       .order('service_type')
     if (qError) throw qError
     const rows = (data ?? []) as ServiceIntervalDefaultRow[]
@@ -89,7 +97,7 @@ export function useCarServices(carId: string | null) {
         .from('v2_car_services')
         .select('*')
         .eq('car_id', effectiveCarId)
-        .not('next_due_date', 'is', null)
+        .or('next_due_date.not.is.null,next_due_mileage.not.is.null')
         .order('next_due_date', { ascending: true })
       if (qError) throw qError
 
@@ -98,12 +106,12 @@ export function useCarServices(carId: string | null) {
         (intervalDefaultsRef.current.length > 0
           ? intervalDefaultsRef.current
           : await fetchIntervalDefaults())
-      const defaultsMap = new Map(defaultsRows.map((row) => [row.service_type, row.warning_days]))
+      const defaultsMap = new Map(defaultsRows.map((row) => [row.service_type, row]))
       const today = new Date()
       today.setHours(0, 0, 0, 0)
 
-      // Keep only the latest log per service_type — an older log's next_due_date
-      // is superseded once a newer service of the same type has been recorded.
+      // Keep only the latest log per service_type — an older log's next_due_date /
+      // next_due_mileage is superseded once a newer service of the same type is recorded.
       const latestByType = new Map<string, CarServiceRow>()
       for (const row of (data ?? []) as CarServiceRow[]) {
         const current = latestByType.get(row.service_type)
@@ -118,20 +126,56 @@ export function useCarServices(carId: string | null) {
 
       const rows = Array.from(latestByType.values())
         .flatMap((row) => {
-          if (!row.next_due_date) return []
-          const dueDate = ymdToDate(row.next_due_date)
-          const warningDays = defaultsMap.get(row.service_type) ?? 14
-          const warningLimit = addDays(today, warningDays)
-          if (dueDate > warningLimit) return []
-          const reminderLevel: ReminderLevel = dueDate < today ? 'overdue' : 'due_soon'
-          return [{ ...row, warning_days: warningDays, reminder_level: reminderLevel }]
+          const defaultsRow = defaultsMap.get(row.service_type)
+          const warningDays = defaultsRow?.warning_days ?? 14
+          const warningKm = defaultsRow?.warning_km ?? DEFAULT_WARNING_KM
+
+          // Whichever is reached first — due date or due KM — drives the alert.
+          let dateLevel: ReminderLevel | null = null
+          if (row.next_due_date) {
+            const dueDate = ymdToDate(row.next_due_date)
+            const warningLimit = addDays(today, warningDays)
+            if (dueDate <= warningLimit) {
+              dateLevel = dueDate < today ? 'overdue' : 'due_soon'
+            }
+          }
+
+          let kmLevel: ReminderLevel | null = null
+          if (row.next_due_mileage != null && carMileage != null) {
+            const warningPoint = row.next_due_mileage - warningKm
+            if (carMileage >= warningPoint) {
+              kmLevel = carMileage >= row.next_due_mileage ? 'overdue' : 'due_soon'
+            }
+          }
+
+          if (!dateLevel && !kmLevel) return []
+
+          const reminderLevel: ReminderLevel =
+            dateLevel === 'overdue' || kmLevel === 'overdue' ? 'overdue' : 'due_soon'
+          const trigger: ReminderTrigger = dateLevel && kmLevel ? 'both' : dateLevel ? 'date' : 'km'
+
+          return [
+            {
+              ...row,
+              warning_days: warningDays,
+              warning_km: warningKm,
+              reminder_level: reminderLevel,
+              trigger,
+              date_level: dateLevel,
+              km_level: kmLevel,
+              car_mileage: carMileage,
+            },
+          ]
         })
-        .sort((a, b) => (a.next_due_date ?? '').localeCompare(b.next_due_date ?? ''))
+        .sort((a, b) => {
+          if (a.reminder_level !== b.reminder_level) return a.reminder_level === 'overdue' ? -1 : 1
+          return (a.next_due_date ?? '').localeCompare(b.next_due_date ?? '')
+        })
 
       setReminders(rows)
       return rows
     },
-    [carId, fetchIntervalDefaults],
+    [carId, carMileage, fetchIntervalDefaults],
   )
 
   const addService = useCallback(

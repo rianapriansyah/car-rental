@@ -23,7 +23,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { SERVICE_TYPE_LABELS, SERVICE_TYPES_BY_CATEGORY } from '../../../constants/serviceTypes'
-import type { ServiceCategory, ServiceType } from '../../../types/service'
+import type { ServiceCategory, ServiceIntervalDefaultRow, ServiceType } from '../../../types/service'
 import type { TablesInsert } from '../../../types/database'
 
 function addMonthsYmd(ymd: string, months: number): string {
@@ -44,7 +44,7 @@ type Props = {
   open: boolean
   carId: string
   addService: (payload: TablesInsert<'v2_car_services'>) => Promise<unknown>
-  intervalDefaultsByType: Map<string, { default_interval_months: number; warning_days: number }>
+  intervalDefaultsByType: Map<string, ServiceIntervalDefaultRow>
   onClose: () => void
   onSaved: () => void
 }
@@ -61,6 +61,7 @@ export function LogServiceDialog({ open, carId, addService, intervalDefaultsByTy
   const [vendor, setVendor] = useState('')
   const [notes, setNotes] = useState('')
   const [nextDueTouched, setNextDueTouched] = useState(false)
+  const [nextDueMileageTouched, setNextDueMileageTouched] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -81,6 +82,7 @@ export function LogServiceDialog({ open, carId, addService, intervalDefaultsByTy
     setVendor('')
     setNotes('')
     setNextDueTouched(false)
+    setNextDueMileageTouched(false)
     setSaving(false)
     setError(null)
   }, [open])
@@ -100,6 +102,17 @@ export function LogServiceDialog({ open, carId, addService, intervalDefaultsByTy
     const suggested = addMonthsYmd(serviceDate.format('YYYY-MM-DD'), defaultRow.default_interval_months)
     setNextDueDate(dayjs(suggested))
   }, [intervalDefaultsByType, nextDueTouched, serviceDate, serviceType])
+
+  useEffect(() => {
+    if (nextDueMileageTouched) return
+    const sm = parseOptionalKm(serviceMileage)
+    const defaultRow = intervalDefaultsByType.get(serviceType)
+    if (sm.invalid || sm.value == null || !defaultRow?.default_interval_km) {
+      setNextDueMileage('')
+      return
+    }
+    setNextDueMileage(String(sm.value + defaultRow.default_interval_km))
+  }, [intervalDefaultsByType, nextDueMileageTouched, serviceMileage, serviceType])
 
   async function handleSubmit() {
     if (!serviceDate) {
@@ -183,6 +196,7 @@ export function LogServiceDialog({ open, carId, addService, intervalDefaultsByTy
               onChange={(e) => {
                 setServiceType(e.target.value as ServiceType)
                 setNextDueTouched(false)
+                setNextDueMileageTouched(false)
               }}
             >
               <MenuItem value="">
@@ -244,7 +258,10 @@ export function LogServiceDialog({ open, carId, addService, intervalDefaultsByTy
               size="small"
               label="Next due mileage (km, optional)"
               value={nextDueMileage ? nextDueMileage.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''}
-              onChange={(e) => setNextDueMileage(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => {
+                setNextDueMileage(e.target.value.replace(/\D/g, ''))
+                setNextDueMileageTouched(true)
+              }}
               inputMode="numeric"
               fullWidth
               slotProps={{ input: { startAdornment: <InputAdornment position="start">KM</InputAdornment> } }}
