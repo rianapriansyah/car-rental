@@ -124,7 +124,9 @@ export function CarDetailPage() {
               onDeleted={() => navigate('/internal/cars')}
             />
           ) : null}
-          {tab === 1 ? <RentalsPage carId={carId} /> : null}
+          {tab === 1 ? (
+            <RentalsPage carId={carId} car={{ name: car.name, plate: car.plate }} />
+          ) : null}
           {tab === 2 ? <OrdersListPage carId={carId} /> : null}
           {tab === 3 ? <TransactionsPage carId={carId} /> : null}
           {tab === 4 ? <CarServiceTab carId={carId} carMileage={car.mileage} /> : null}

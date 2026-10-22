@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 import { useSearchParams } from 'react-router-dom'
+import DownloadIcon from '@mui/icons-material/Download'
 import PrintIcon from '@mui/icons-material/Print'
 import {
   Alert,
   Box,
+  Button,
   Chip,
   IconButton,
   Paper,
@@ -25,6 +27,8 @@ import { RentalReceiptDialog } from './RentalReceiptDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 import { getRentalStatusChipProps, RENTAL_STATUS_LABELS, statusChipSx } from '../../../lib/statusChips'
 import { formatDuration } from '../../../lib/formatDuration'
+import { fetchCompanyDisplayName } from '../../../lib/ledgerPdf'
+import { downloadRentalHistoryReport, monthLabelId } from './rentalHistoryPdf'
 
 type RentalsPageProps = {
   /**
@@ -32,6 +36,8 @@ type RentalsPageProps = {
    * the car selector is hidden, results are locked to this car, and the page heading is omitted.
    */
   carId?: string
+  /** Car identity for the downloadable rental report; only used in embedded mode. */
+  car?: { name: string; plate: string }
 }
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
@@ -69,7 +75,7 @@ function completionLabel(row: RentalWithCar): string {
   return row.end_time ? `${row.end_date} ${row.end_time}` : row.end_date
 }
 
-export function RentalsPage({ carId: lockedCarId }: RentalsPageProps = {}) {
+export function RentalsPage({ carId: lockedCarId, car }: RentalsPageProps = {}) {
   const isEmbedded = Boolean(lockedCarId)
   const [searchParams, setSearchParams] = useSearchParams()
   const rentalIdParam = isEmbedded ? null : searchParams.get('rentalId')
@@ -84,6 +90,7 @@ export function RentalsPage({ carId: lockedCarId }: RentalsPageProps = {}) {
   const [completeRental, setCompleteRental] = useState<RentalWithCar | null>(null)
   const [receiptRental, setReceiptRental] = useState<RentalWithCar | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
+  const [pdfBusy, setPdfBusy] = useState(false)
 
   const loadCars = useCallback(async () => {
     if (isEmbedded) return
@@ -130,12 +137,52 @@ export function RentalsPage({ carId: lockedCarId }: RentalsPageProps = {}) {
     setPaginationModel((m) => ({ ...m, page: 0 }))
   }, [carId, month])
 
-  const filteredRows = useMemo(() => {
-    const byScope = rentalIdParam
-      ? rows
-      : rows.filter((row) => rentalMatchesCarAndMonth(row, carId, scopeMonthYyyyMm))
-    return byScope.filter((row) => matchesSearchTokens(rentalSearchBlob(row), keyword))
-  }, [rows, carId, scopeMonthYyyyMm, keyword, rentalIdParam])
+  /** Car + month scope, before the keyword search — this is what the report covers. */
+  const monthScopedRows = useMemo(
+    () =>
+      rentalIdParam
+        ? rows
+        : rows.filter((row) => rentalMatchesCarAndMonth(row, carId, scopeMonthYyyyMm)),
+    [rows, carId, scopeMonthYyyyMm, rentalIdParam],
+  )
+
+  const filteredRows = useMemo(
+    () => monthScopedRows.filter((row) => matchesSearchTokens(rentalSearchBlob(row), keyword)),
+    [monthScopedRows, keyword],
+  )
+
+  const reportCar = car ?? rows.find((row) => row.v2_cars)?.v2_cars ?? null
+
+  async function handleDownloadRentalHistory() {
+    if (!reportCar) return
+    setPdfBusy(true)
+    setError(null)
+    try {
+      const companyName = await fetchCompanyDisplayName(supabase)
+      downloadRentalHistoryReport({
+        companyName,
+        month: scopeMonthYyyyMm,
+        car: { name: reportCar.name, plate: reportCar.plate },
+        rentals: monthScopedRows.map((row) => ({
+          renter_name: row.renter_name,
+          renter_phone: row.renter_phone,
+          start_date: row.start_date,
+          start_time: row.start_time,
+          end_date: row.end_date,
+          end_time: row.end_time,
+          down_payment: row.down_payment,
+          gross_income: row.gross_income,
+          status: row.status,
+          statusLabel: RENTAL_STATUS_LABELS[row.status] ?? row.status,
+          durationLabel: calcDurationLabel(row),
+        })),
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Gagal membuat laporan sewa.')
+    } finally {
+      setPdfBusy(false)
+    }
+  }
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -295,6 +342,27 @@ export function RentalsPage({ carId: lockedCarId }: RentalsPageProps = {}) {
             allowAllCars
           />
         )
+      ) : null}
+
+      {isEmbedded && !rentalIdParam ? (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mb: 2 }}>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<DownloadIcon />}
+            disabled={pdfBusy || loading || !reportCar || monthScopedRows.length === 0}
+            onClick={() => void handleDownloadRentalHistory()}
+          >
+            {pdfBusy ? 'Menyiapkan…' : 'Unduh Laporan Sewa'}
+          </Button>
+          <Typography variant="caption" color="text.secondary">
+            {monthScopedRows.length === 0
+              ? `Tidak ada sewa pada ${monthLabelId(scopeMonthYyyyMm)}.`
+              : `${monthScopedRows.length} sewa pada ${monthLabelId(scopeMonthYyyyMm)}${
+                  keyword.trim() ? ' — laporan mengabaikan kata kunci pencarian' : ''
+                }.`}
+          </Typography>
+        </Box>
       ) : null}
 
       <InternalDataGridSearchPanel
