@@ -46,6 +46,7 @@ import { fetchCompanyDisplayName } from '../../../lib/ledgerPdf'
 import { supabase } from '../../../lib/supabase'
 import type { Tables } from '../../../types/database'
 import { CheckInPanel } from '../inout/CheckInPanel'
+import { CheckOutPanel } from '../inout/CheckOutPanel'
 
 type ActiveRental = Tables<'v2_rentals'> & {
   v2_cars: Pick<Tables<'v2_cars'>, 'name' | 'plate' | 'daily_rate'> | null
@@ -62,6 +63,8 @@ export function LobbyPage() {
   const [dailyDriverRate, setDailyDriverRate] = useState(0)
   const [now, setNow] = useState(() => dayjs())
   const [checkInOpen, setCheckInOpen] = useState(false)
+  const [checkOutRental, setCheckOutRental] = useState<ActiveRental | null>(null)
+  const [refreshTick, setRefreshTick] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
@@ -179,7 +182,9 @@ export function LobbyPage() {
               Keluarkan Mobil
             </Button>
             <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
-              {rentals.length} mobil sedang keluar
+              {rentals.length > 0
+                ? `${rentals.length} mobil sedang keluar — ketuk baris untuk check out`
+                : '0 mobil sedang keluar'}
             </Typography>
           </Box>
 
@@ -212,7 +217,12 @@ export function LobbyPage() {
                     const hasOt = (bd?.overtimeHours ?? 0) > 0
 
                     return (
-                      <TableRow key={r.id} hover>
+                      <TableRow
+                        key={r.id}
+                        hover
+                        onClick={() => setCheckOutRental(r)}
+                        sx={{ cursor: 'pointer' }}
+                      >
                         <TableCell align="right">
                           <Typography variant="body2" color="text.secondary">
                             {i + 1}
@@ -330,6 +340,41 @@ export function LobbyPage() {
               }}
               onCancel={() => setCheckInOpen(false)}
             />
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={checkOutRental !== null}
+          onClose={() => setCheckOutRental(null)}
+          fullWidth
+          maxWidth="sm"
+          fullScreen={fullScreenDialog}
+        >
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 1 }}>
+            <Box component="span" sx={{ flex: 1 }}>
+              Check Out — Selesaikan Sewa
+            </Box>
+            <IconButton aria-label="Tutup" onClick={() => setCheckOutRental(null)} size="small">
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent dividers>
+            {checkOutRental ? (
+              <CheckOutPanel
+                refreshTick={refreshTick}
+                lockedRentalId={checkOutRental.id}
+                onCompleted={() => {
+                  setRefreshTick((n) => n + 1)
+                  void load()
+                }}
+                onFinished={(message) => {
+                  setCheckOutRental(null)
+                  setToast(message)
+                  void load()
+                }}
+                onCancel={() => setCheckOutRental(null)}
+              />
+            ) : null}
           </DialogContent>
         </Dialog>
 
