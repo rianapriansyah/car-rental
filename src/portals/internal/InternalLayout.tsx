@@ -26,6 +26,7 @@ const HOME_NAV = [{ to: '/internal/home', label: 'Beranda' }]
 
 const ADMIN_NAV = [
   { to: '/internal/in-out', label: 'Masuk / Keluar' },
+  { to: '/internal/lobby', label: 'Layar Lobi' },
   { to: '/internal/renter-info', label: 'Info Penyewa' },
   { to: '/internal/cars', label: 'Kendaraan' },
   { to: '/internal/partners', label: 'Mitra' },

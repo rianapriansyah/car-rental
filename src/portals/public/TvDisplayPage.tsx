@@ -5,54 +5,18 @@ import 'dayjs/locale/id'
 import { supabase } from '../../lib/supabase'
 import { useV2RealtimeRefresh } from '../../hooks/useV2RealtimeRefresh'
 import { formatIdr } from '../../lib/formatIdr'
-import { calcCost, type CostBreakdown } from '../../lib/rentalCost'
-import { calcDriverFeeVariantA } from '../../lib/driverFee'
-import { elapsedHoursRentalReference } from '../../lib/rentalElapsedHours'
+import {
+  calcActiveRentalTotals,
+  formatDateTimeId,
+  formatElapsedCompact,
+  formatIdrPlain,
+  ID_DAYS,
+} from '../../lib/activeRentalDisplay'
 import { fetchCompanyDisplayName } from '../../lib/ledgerPdf'
 import type { Tables } from '../../types/database'
 
 type ActiveRental = Tables<'v2_rentals'> & {
   v2_cars: Pick<Tables<'v2_cars'>, 'name' | 'plate' | 'daily_rate'> | null
-}
-
-const ID_DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
-
-function formatDateTimeId(date: string | null, time: string | null): string {
-  if (!date) return '—'
-  const d = dayjs(date)
-  return `${ID_DAYS[d.day()]}, ${d.format('DD-MM-YYYY')} ${time ? time.slice(0, 5) : '--:--'}`
-}
-
-/** Elapsed hours → "2h 1j 30m" / "13j 7m" (hari, jam, menit) */
-function formatElapsed(hours: number): string {
-  const totalMinutes = Math.round(hours * 60)
-  const days = Math.floor(totalMinutes / (60 * 24))
-  const remH = Math.floor((totalMinutes % (60 * 24)) / 60)
-  const remM = totalMinutes % 60
-  const parts: string[] = []
-  if (days > 0) parts.push(`${days}h`)
-  if (remH > 0 || days === 0) parts.push(`${remH}j`)
-  if (remM > 0 || (days === 0 && remH === 0)) parts.push(`${remM}m`)
-  return parts.join(' ')
-}
-
-/** IDR amount without the Rp prefix (e.g. 25.000) for inline breakdowns */
-function formatIdrPlain(amount: number): string {
-  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(Math.round(amount))
-}
-
-function calcBreakdown(
-  rental: ActiveRental,
-  now: dayjs.Dayjs,
-  overtimeRate: number,
-): CostBreakdown | null {
-  const { start_date, start_time } = rental
-  const dailyRate = rental.v2_cars?.daily_rate ?? 0
-  if (!dailyRate || !start_date) return null
-  const startDt = dayjs(`${start_date}T${start_time ?? '00:00:00'}`)
-  const elapsedHours = now.diff(startDt, 'hour', true)
-  if (elapsedHours <= 0) return null
-  return calcCost(elapsedHours, dailyRate, overtimeRate)
 }
 
 const SCROLL_INTERVAL_MS = 40
@@ -351,18 +315,12 @@ export function TvDisplayPage() {
               </tr>
             ) : (
               rentals.map((r, i) => {
-                const bd = calcBreakdown(r, now, overtimeRate)
-                const dp = r.down_payment ?? 0
-                const elapsedH =
-                  bd != null
-                    ? bd.elapsedHours
-                    : elapsedHoursRentalReference(r.start_date, r.start_time, now.valueOf())
-                const driverFee =
-                  elapsedH > 0
-                    ? calcDriverFeeVariantA(elapsedH, dailyDriverRate, !!r.include_driver)
-                    : 0
-                const gross = (bd?.total ?? 0) + driverFee
-                const sisa = Math.max(0, gross - dp)
+                const { breakdown: bd, dp, gross, sisa } = calcActiveRentalTotals(
+                  r,
+                  now,
+                  overtimeRate,
+                  dailyDriverRate,
+                )
                 const hasOt = (bd?.overtimeHours ?? 0) > 0
 
                 return (
@@ -428,7 +386,7 @@ export function TvDisplayPage() {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {bd ? formatElapsed(bd.elapsedHours) : <span style={{ color: '#3a5a80' }}>—</span>}
+                      {bd ? formatElapsedCompact(bd.elapsedHours) : <span style={{ color: '#3a5a80' }}>—</span>}
                     </td>
 
                     {/* DP */}

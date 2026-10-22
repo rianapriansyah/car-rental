@@ -6,6 +6,7 @@ import { LoginPage } from './portals/LoginPage'
 import { InternalLayout } from './portals/internal/InternalLayout'
 import { BootstrapAdminPage } from './portals/internal/BootstrapAdminPage'
 import { HomePage } from './portals/internal/home/HomePage'
+import { LobbyPage } from './portals/internal/lobby/LobbyPage'
 import { CarsPage } from './portals/internal/cars/CarsPage'
 import { CarDetailPage } from './portals/internal/cars/CarDetailPage'
 import { PartnersPage } from './portals/internal/partners/PartnersPage'
@@ -41,6 +42,8 @@ export default function App() {
 
           <Route path="/internal/bootstrap-admin" element={<BootstrapAdminPage />} />
           <Route path="/internal" element={<AuthenticatedRoute />}>
+            {/* Lobby tablet kiosk — full screen, outside the internal nav chrome. */}
+            <Route path="lobby" element={<LobbyPage />} />
             <Route element={<InternalLayout />}>
               <Route index element={<Navigate to="home" replace />} />
               <Route path="home" element={<HomePage />} />
